@@ -1,0 +1,30 @@
+# Environment variables
+.env
+**/.env
+
+# Telegram sessions
+*.session
+*.session-journal
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+unknown_errors.txt
+
+# OS files
+.DS_Store
+Thumbs.db
