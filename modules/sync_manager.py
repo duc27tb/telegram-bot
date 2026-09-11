@@ -42,11 +42,12 @@ def auto_sync_targets_json():
                             continue
 
     os.makedirs("data", exist_ok=True)
-    new_targets_data = {
-        "delay_seconds": delay_seconds,
-        "group_ids": list(unique_group_ids),
-        "messages_pool": messages_pool
-    }
+    new_targets_data = current_data.copy()
+    new_targets_data["delay_seconds"] = delay_seconds
+    new_targets_data["group_ids"] = list(unique_group_ids)
+    new_targets_data["messages_pool"] = messages_pool
+    new_targets_data.setdefault("group_delay_seconds", 120)
+    new_targets_data.setdefault("cycle_delay_seconds", 1200)
 
     with open(targets_path, "w", encoding="utf-8") as f:
         json.dump(new_targets_data, f, ensure_ascii=False, indent=2)

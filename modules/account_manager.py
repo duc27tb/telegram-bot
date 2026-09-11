@@ -128,21 +128,65 @@ def add_new_account_workflow():
     phone_telegram = "+84" + phone_input[1:] if phone_input.startswith("0") else (phone_input if phone_input.startswith("+") else "+" + phone_input)
     last_3_digits = phone_input[-3:]
 
+    # 🔑 BƯỚC 1: Tìm API_ID và API_HASH từ các nguồn có sẵn hoặc hỏi người dùng
+    api_id = ""
+    api_hash = ""
+
+    # Danh sách các file .env để quét theo thứ tự ưu tiên
+    env_paths_to_check = [
+        ".env",                             # .env ở thư mục gốc
+        os.path.join(ACC1_TEMPLATE, ".env") # Thư mục mẫu cũ
+    ]
+
+    # Quét thêm tất cả các thư mục acc* hiện có để tìm .env
+    if os.path.exists("."):
+        for item in os.listdir("."):
+            if os.path.isdir(item) and item.lower().startswith("acc"):
+                p = os.path.join(item, ".env")
+                if p not in env_paths_to_check:
+                    env_paths_to_check.append(p)
+
+    # Đọc thử để tìm API_ID và API_HASH
+    for path in env_paths_to_check:
+        if os.path.exists(path):
+            load_dotenv(dotenv_path=path, override=True)
+            candidate_id = os.getenv("API_ID")
+            candidate_hash = os.getenv("API_HASH")
+            if candidate_id and candidate_hash:
+                api_id = candidate_id
+                api_hash = candidate_hash
+                break
+
+    # Nếu hoàn toàn không tìm thấy cấu hình ở đâu, yêu cầu người dùng nhập vào
+    if not api_id or not api_hash:
+        print("\n💡 Không tìm thấy cấu hình Telegram API (.env) ở bất kỳ đâu.")
+        print("Vui lòng truy cập https://my.telegram.org đăng nhập và lấy thông tin:")
+        api_id = input("👉 Nhập API_ID: ").strip()
+        api_hash = input("👉 Nhập API_HASH: ").strip()
+
+        if not api_id or not api_hash:
+            print("❌ Lỗi: API_ID và API_HASH không được để trống!")
+            input("\nẤn Enter để quay lại Menu chính...")
+            return
+
+        # Lưu lại vào file .env ở thư mục gốc làm mẫu cho các lần sau
+        with open(".env", "w", encoding="utf-8") as f:
+            f.write(f"API_ID={api_id}\n")
+            f.write(f"API_HASH={api_hash}\n")
+        print("💾 Đã lưu cấu hình API vào file `.env` ở thư mục gốc để tái sử dụng.")
+
+    # 📁 BƯỚC 2: Tính toán tên thư mục mới và tạo thư mục
     existing_folders = get_all_account_folders()
     new_folder_name = f"acc{len(existing_folders) + 1}_{last_3_digits}"
 
     print(f"\n[🚀 Step 1]: Đang tự động tạo thư mục: {new_folder_name}...")
     os.makedirs(new_folder_name, exist_ok=True)
 
-    print(f"[🚀 Step 2]: Đang sao chép mã API dùng chung...")
-    source_env = os.path.join(ACC1_TEMPLATE, ".env")
+    print(f"[🚀 Step 2]: Đang thiết lập cấu hình API...")
     dest_env = os.path.join(new_folder_name, ".env")
-
-    if os.path.exists(source_env):
-        shutil.copy(source_env, dest_env)
-    else:
-        print(f"❌ Không tìm thấy file gốc tại {source_env}!")
-        return
+    with open(dest_env, "w", encoding="utf-8") as f:
+        f.write(f"API_ID={api_id}\n")
+        f.write(f"API_HASH={api_hash}\n")
 
     print(f"[🚀 Step 3]: Bật cổng nhập mã OTP Telegram...")
     print("----------------------------------------------------------------")
@@ -150,10 +194,20 @@ def add_new_account_workflow():
     print("----------------------------------------------------------------")
 
     loop = asyncio.get_event_loop()
-    success = loop.run_until_complete(request_otp_for_new_acc(new_folder_name, phone_telegram))
+    success = False
+    try:
+        success = loop.run_until_complete(request_otp_for_new_acc(new_folder_name, phone_telegram))
+    except Exception as e:
+        print(f"\n❌ Lỗi trong quá trình xác thực: {e}")
 
     if success:
         print(f"\n🎉 HOÀN THÀNH XUẤT SẮC! Đã cấu hình xong xuôi cho {new_folder_name.upper()}.")
     else:
-        print("\n❌ Quá trình cài đặt thất bại.")
+        print("\n❌ Quá trình cài đặt thất bại. Đang tiến hành dọn dẹp thư mục tạm...")
+        if os.path.exists(new_folder_name):
+            try:
+                shutil.rmtree(new_folder_name)
+                print(f"🗑️ Đã xóa thư mục trống: {new_folder_name}")
+            except Exception as delete_error:
+                print(f"⚠️ Không thể xóa thư mục {new_folder_name}: {delete_error}")
     input("\nẤn Enter để quay lại Menu chính...")

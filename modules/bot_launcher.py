@@ -47,6 +47,7 @@ def kill_all_active_bots():
         # Duyệt qua toàn bộ các tiến trình đang chạy trên máy tính Windows
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
+
                 # Kiểm tra xem tiến trình đó có phải là Python không
                 if proc.info['name'] and 'python' in proc.info['name'].lower():
                     cmdline = proc.info['cmdline']
