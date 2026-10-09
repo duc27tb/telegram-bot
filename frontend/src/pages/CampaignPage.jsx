@@ -18,6 +18,9 @@ import {
   Radio, 
   Terminal, 
   AlertTriangle, 
+  AlertCircle,
+  Crown,
+  FileText,
   RefreshCw, 
   Zap, 
   Users
