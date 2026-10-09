@@ -1,0 +1,177 @@
+{
+  "balances": {
+    "f7ffc990-ca85-474d-b53f-827af0a08062": 201000,
+    "d1193ea1-3923-4a5a-bebc-874a6d8a03c7": 1000,
+    "04f58cc8-27e8-4a30-884a-410db6dab06c": 200000
+  },
+  "transactions": [
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 1438085036,
+      "amount": 50000,
+      "description": "NAP 85036",
+      "status": "PENDING",
+      "payment_link_id": "51eba14f486540f490f50ec0232d184f",
+      "checkout_url": "https://pay.payos.vn/web/51eba14f486540f490f50ec0232d184f",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMPPF86640208QRIBFTTA53037045405500005802VN62130809NAP 850366304AC59",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMPPF8664",
+      "bank_account_name": "TRAN NGOC DUC",
+      "vietqr_image_url": "https://img.vietqr.io/image/970422-VQRQAMPPF8664-qr_only.png?amount=50000&addInfo=NAP 85036&accountName=TRAN%20NGOC%20DUC",
+      "created_at": "2026-10-08T05:41:25Z"
+    },
+    {
+      "user_id": "d1193ea1-3923-4a5a-bebc-874a6d8a03c7",
+      "order_code": 1428495481,
+      "amount": 200000,
+      "description": "NAP 495481",
+      "status": "PAID",
+      "bank_account_name": "TRAN NGOC DUC",
+      "bank_account_number": "0869098696",
+      "bank_bin": "970422",
+      "created_at": "2026-10-08T03:01:35Z"
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 1427256418,
+      "amount": 200000,
+      "description": "CONG 256418",
+      "status": "PAID",
+      "bank_account_name": "TRAN NGOC DUC",
+      "bank_account_number": "0869098696",
+      "bank_bin": "970422",
+      "created_at": "2026-10-08T02:40:56Z"
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 1413039801,
+      "amount": 110000,
+      "description": "NAP 39801",
+      "status": "PAID",
+      "payment_link_id": "e5ecdc7c23a54ba5ae64bd4ab41eb6f0",
+      "checkout_url": "https://pay.payos.vn/web/e5ecdc7c23a54ba5ae64bd4ab41eb6f0",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMPJR44720208QRIBFTTA530370454061100005802VN62130809NAP 3980163047F0D",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMPJR4472",
+      "bank_account_name": "TRAN NGOC DUC",
+      "vietqr_image_url": "https://img.vietqr.io/image/970422-VQRQAMPJR4472-qr_only.png?amount=110000&addInfo=NAP 39801&accountName=TRAN%20NGOC%20DUC",
+      "created_at": "2026-10-07T22:44:00Z",
+      "payos_transaction_id": ""
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 1409615888,
+      "amount": 50000,
+      "description": "NAP 615888",
+      "status": "PENDING",
+      "payment_link_id": "b49b25ab9ced404c8fca57e3a61bfa74",
+      "checkout_url": "https://pay.payos.vn/web/b49b25ab9ced404c8fca57e3a61bfa74",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMPJP34840208QRIBFTTA53037045405500005802VN62140810NAP 6158886304EE48",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMPJP3484",
+      "bank_account_name": "TRAN NGOC DUC",
+      "vietqr_image_url": "https://img.vietqr.io/image/970422-VQRQAMPJP3484-qr_only.png?amount=50000&addInfo=NAP 615888&accountName=TRAN%20NGOC%20DUC",
+      "created_at": "2026-10-07T21:46:56Z"
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 9940007985,
+      "amount": 50000,
+      "description": "NAP 7985",
+      "status": "PENDING",
+      "payment_link_id": "0fe88f7073324005b02676a395ffece0",
+      "checkout_url": "https://pay.payos.vn/web/0fe88f7073324005b02676a395ffece0",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMLWI16380208QRIBFTTA53037045405500005802VN62120808NAP 798563044C9A",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMLWI1638",
+      "bank_account_name": "TRAN NGOC DUC",
+      "vietqr_image_url": "https://img.vietqr.io/image/970422-VQRQAMLWI1638-qr_only.png?amount=50000&addInfo=NAP 7985&accountName=TRAN%20NGOC%20DUC",
+      "created_at": "2026-10-02T11:20:08Z"
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 9938009184,
+      "amount": 50000,
+      "description": "NAP 9184",
+      "status": "PAID",
+      "payment_link_id": "c0af154bcce84e87b76b117419b24e37",
+      "checkout_url": "https://pay.payos.vn/web/c0af154bcce84e87b76b117419b24e37",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMLVL38420208QRIBFTTA53037045405500005802VN62120808NAP 9184630417D7",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMLVL3842",
+      "bank_account_name": "TRAN NGOC DUC",
+      "vietqr_image_url": "https://img.vietqr.io/image/970422-VQRQAMLVL3842-qr_only.png?amount=50000&addInfo=NAP 9184&accountName=TRAN%20NGOC%20DUC",
+      "created_at": "2026-10-02T10:46:50Z",
+      "payos_transaction_id": ""
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 9937393298,
+      "amount": 55000,
+      "description": "NAP 393298",
+      "status": "PENDING",
+      "payment_link_id": "4b7ee43b528e4f26a3b9f3b34923bdc1",
+      "checkout_url": "https://pay.payos.vn/web/4b7ee43b528e4f26a3b9f3b34923bdc1",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMLVI15400208QRIBFTTA53037045405550005802VN62140810NAP 39329863045857",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMLVI1540",
+      "bank_account_name": "TRAN NGOC DUC",
+      "created_at": "2026-10-02T10:36:34Z"
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 9937178920,
+      "amount": 55000,
+      "description": "NAP 178920",
+      "status": "PENDING",
+      "payment_link_id": "5235aa61c3e74c2aab72772bf144d4a5",
+      "checkout_url": "https://pay.payos.vn/web/5235aa61c3e74c2aab72772bf144d4a5",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMLVD46020208QRIBFTTA53037045405550005802VN62140810NAP 1789206304B035",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMLVD4602",
+      "bank_account_name": "TRAN NGOC DUC",
+      "created_at": "2026-10-02T10:32:59Z"
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 9936897215,
+      "amount": 55000,
+      "description": "NAP 897215",
+      "status": "PENDING",
+      "payment_link_id": "989e1105df8a4e29a61ab675c541b7a6",
+      "checkout_url": "https://pay.payos.vn/web/989e1105df8a4e29a61ab675c541b7a6",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMLVB46640208QRIBFTTA53037045405550005802VN62140810NAP 89721563046F3D",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMLVB4664",
+      "bank_account_name": "TRAN NGOC DUC",
+      "created_at": "2026-10-02T10:28:17Z"
+    },
+    {
+      "user_id": "f7ffc990-ca85-474d-b53f-827af0a08062",
+      "order_code": 9924747978,
+      "amount": 20000,
+      "description": "NAP 747978",
+      "status": "PAID",
+      "payment_link_id": "ad87772cce984fc2bcc89653a3dd0e80",
+      "checkout_url": "https://pay.payos.vn/web/ad87772cce984fc2bcc89653a3dd0e80",
+      "qr_code": "00020101021238570010A000000727012700069704220113VQRQAMLRV37380208QRIBFTTA53037045405200005802VN62140810NAP 7479786304C0F0",
+      "bank_bin": "970422",
+      "bank_account_number": "VQRQAMLRV3738",
+      "bank_account_name": "TRAN NGOC DUC",
+      "created_at": "2026-10-02T07:05:49Z",
+      "payos_transaction_id": ""
+    }
+  ],
+  "subscriptions": {
+    "f7ffc990-ca85-474d-b53f-827af0a08062": {
+      "tier": "VIP",
+      "expires_at": "2026-11-06T23:13:53.641976Z",
+      "updated_at": "2026-10-07T23:13:53Z"
+    },
+    "d1193ea1-3923-4a5a-bebc-874a6d8a03c7": {
+      "tier": "VIP",
+      "expires_at": "2026-11-07T11:53:30.771430Z",
+      "updated_at": "2026-10-08T11:53:30Z"
+    }
+  }
+}

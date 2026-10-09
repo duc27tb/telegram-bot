@@ -1,0 +1,33 @@
+{
+  "free": {
+    "id": "plan_free",
+    "name": "Gói Miễn Phí (Free)",
+    "price": 0,
+    "duration_days": 3650,
+    "max_accounts": 3,
+    "daily_broadcast_limit": 50,
+    "features": [
+      "Tối đa 3 tài khoản Telegram",
+      "Quét & đồng bộ danh sách nhóm",
+      "1 Mẫu tin nhắn chiến dịch duy nhất",
+      "Không hỗ trợ Live Chat 2 chiều",
+      "Không hỗ trợ chuyển tiếp về Telegram cá nhân"
+    ]
+  },
+  "vip": {
+    "id": "plan_vip_pro",
+    "name": "VIP Pro (Marketer & Doanh Nghiệp)",
+    "price": 199000,
+    "duration_days": 30,
+    "max_accounts": 10,
+    "daily_broadcast_limit": 999999,
+    "features": [
+      "Tối đa 10 tài khoản Telegram",
+      "Quét & đồng bộ nhóm không giới hạn",
+      "Spintax xoay vòng tin nhắn đa dạng",
+      "Live Chat 2 chiều nhận & trả lời tức thì",
+      "Chuyển tiếp báo cáo & lead về Telegram cá nhân",
+      "Tự động chống khoá FloodWait thông minh"
+    ]
+  }
+}

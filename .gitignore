@@ -1,6 +1,7 @@
 # Environment variables
 .env
 **/.env
+*.env.local
 
 # Telegram sessions
 *.session
@@ -21,6 +22,14 @@ env/
 .idea/
 .vscode/
 
+# Frontend / Node
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+dist-ssr/
+*.local
+
 # Logs
 *.log
 unknown_errors.txt
@@ -28,3 +37,6 @@ unknown_errors.txt
 # OS files
 .DS_Store
 Thumbs.db
+
+# Scratchpad & temporary docs
+scratch/
