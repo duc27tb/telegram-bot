@@ -1,6 +1,12 @@
 import asyncio
 import random
 import time
+
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 from typing import Dict, Any, List, AsyncGenerator
 from pyrogram import Client
 from pyrogram.errors import (

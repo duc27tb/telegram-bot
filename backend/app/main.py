@@ -1,4 +1,11 @@
 import asyncio
+
+# Fix Pyrogram issue on Python 3.12+ / 3.14 (RuntimeError: There is no current event loop)
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

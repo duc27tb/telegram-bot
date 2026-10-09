@@ -11,6 +11,12 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 from typing import Dict, Any, Optional
 from pyrogram import Client, filters, errors as pyrogram_errors
 from pyrogram.types import Message
