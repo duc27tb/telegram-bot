@@ -1,51 +1,67 @@
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+export const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
 
 export async function requestOTP(phoneNumber, apiId = null, apiHash = null, userId = null) {
-  const res = await fetch(`${BACKEND_URL}/api/accounts/request-otp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone_number: phoneNumber, api_id: apiId, api_hash: apiHash, user_id: userId })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    return { success: false, error: data.detail || data.error || 'Lỗi gửi mã OTP' };
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/accounts/request-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone_number: phoneNumber, api_id: apiId, api_hash: apiHash, user_id: userId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.detail || data.error || 'Lỗi gửi mã OTP' };
+    }
+    return data;
+  } catch (err) {
+    return { success: false, error: `Không thể kết nối máy chủ (${BACKEND_URL}).` };
   }
-  return data;
 }
 
 export async function verifyOTP(loginId, code, password, userId) {
-  const res = await fetch(`${BACKEND_URL}/api/accounts/verify-otp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login_id: loginId, code, password, user_id: userId })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    return { 
-      success: false, 
-      error: data.detail || data.error || 'Lỗi xác thực mã OTP',
-      need_2fa: data.need_2fa || false
-    };
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/accounts/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login_id: loginId, code, password, user_id: userId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { 
+        success: false, 
+        error: data.detail || data.error || 'Lỗi xác thực mã OTP',
+        need_2fa: data.need_2fa || false
+      };
+    }
+    return data;
+  } catch (err) {
+    return { success: false, error: `Không thể kết nối máy chủ (${BACKEND_URL}).` };
   }
-  return data;
 }
 
 export async function startCampaign(userId) {
-  const res = await fetch(`${BACKEND_URL}/api/campaign/start`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId })
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/campaign/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: `Không thể kết nối Backend (${BACKEND_URL}). Vui lòng kiểm tra VITE_BACKEND_URL trên Vercel.` };
+  }
 }
 
 export async function stopCampaign(userId) {
-  const res = await fetch(`${BACKEND_URL}/api/campaign/stop`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId })
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/campaign/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: `Không thể kết nối Backend (${BACKEND_URL}).` };
+  }
 }
 
 export async function getCampaignStatus(userId) {
@@ -248,16 +264,24 @@ export async function getSubscriptionPlans() {
 }
 
 export async function upgradeVipPlan(userId) {
-  const res = await fetch(`${BACKEND_URL}/api/wallet/upgrade-vip`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    return { success: false, error: data.detail || 'Lỗi nâng cấp gói VIP' };
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/wallet/upgrade-vip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.detail || 'Lỗi nâng cấp gói VIP' };
+    }
+    return data;
+  } catch (err) {
+    console.error('[API] upgradeVipPlan error:', err);
+    return { 
+      success: false, 
+      error: `Không thể kết nối máy chủ (${BACKEND_URL}). Vui lòng kiểm tra VITE_BACKEND_URL trên Vercel hoặc đảm bảo server Render đang hoạt động.` 
+    };
   }
-  return data;
 }
 
 export async function updateUserSubscription(userId, tier, durationDays = 30, adminId) {
