@@ -851,7 +851,22 @@ export default function GroupsPage() {
                     const isMaster = masterGroupChatIds.has(String(grp.chat_id));
                     const meta = groupMetadata[String(grp.chat_id)];
                     const membersCount = meta?.members_count || 0;
-                    const grpErr = groupErrors[String(grp.chat_id)] || groupErrors[grp.group_title];
+
+                    // Tìm lỗi gần nhất của nhóm linh hoạt theo chat_id, title hoặc title chuẩn hóa
+                    const grpErr = (() => {
+                      if (!groupErrors || typeof groupErrors !== 'object') return null;
+                      const cid = String(grp.chat_id);
+                      if (groupErrors[cid]) return groupErrors[cid];
+                      if (grp.group_title && groupErrors[grp.group_title]) return groupErrors[grp.group_title];
+                      if (grp.group_title && groupErrors[grp.group_title.trim()]) return groupErrors[grp.group_title.trim()];
+                      const norm = (grp.group_title || '').trim().toLowerCase();
+                      if (norm) {
+                        for (const [k, v] of Object.entries(groupErrors)) {
+                          if (k.trim().toLowerCase() === norm) return v;
+                        }
+                      }
+                      return null;
+                    })();
 
                     return (
                       <div key={grp.id} className={`group-row-item ${!grp.is_active ? 'inactive' : ''}`}>
@@ -920,17 +935,21 @@ export default function GroupsPage() {
                                 </span>
                               )}
                               {grpErr && grpErr.last_error && (
-                                <Tooltip text={grpErr.skip_reason ? `${grpErr.skip_reason} • ${grpErr.last_error}` : `Lỗi gần nhất: ${grpErr.last_error}`}>
+                                <Tooltip text={`Lỗi gần nhất: ${grpErr.last_error} ${grpErr.last_error_at ? `(${new Date(grpErr.last_error_at).toLocaleTimeString('vi-VN')})` : ''}`}>
                                   <span 
-                                    className={`group-status-badge ${grpErr.is_skipped ? 'skipped' : 'warning'}`}
+                                    className={`group-status-badge ${grpErr.is_forbidden || grpErr.is_skipped ? 'skipped' : 'warning'}`}
                                   >
-                                    <AlertTriangle size={11} />
+                                    <AlertTriangle size={11} style={{ flexShrink: 0 }} />
                                     <span>
                                       {grpErr.is_forbidden
                                         ? 'Khóa chat (Chỉ Admin)'
                                         : grpErr.is_skipped
                                           ? 'Bỏ qua (Bị cấm chat)'
-                                          : 'Lỗi gửi tin'}
+                                          : grpErr.is_banned
+                                            ? 'Bị cấm chat'
+                                            : grpErr.last_error.length > 25
+                                              ? grpErr.last_error.slice(0, 25) + '...'
+                                              : grpErr.last_error}
                                     </span>
                                   </span>
                                 </Tooltip>

@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 const getBackendUrl = () => {
   const envUrl = (import.meta.env.VITE_BACKEND_URL || '').trim();
   const isLocalhost = typeof window !== 'undefined' && (
@@ -470,13 +472,64 @@ export function formatFriendlyLogMessage(msg) {
 }
 
 export async function getGroupsErrorStatus(userId) {
+  let result = {};
+
+  // 1. Thử gọi API Backend (để lấy cả Circuit Breaker runtime state nếu backend đang chạy)
   try {
     const res = await fetch(`${BACKEND_URL}/api/groups/errors?user_id=${userId}`);
-    const data = await res.json();
-    return data && data.success ? data.data : {};
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.data) {
+        result = { ...data.data };
+      }
+    }
   } catch (err) {
-    return {};
+    // Backend offline hoặc đang deploy
   }
+
+  // 2. Luôn đọc trực tiếp từ bảng bot_logs trong Supabase để 100% hiển thị lỗi đã ghi nhận
+  try {
+    if (userId) {
+      const { data: logs } = await supabase
+        .from('bot_logs')
+        .select('message, log_type, created_at')
+        .eq('user_id', userId)
+        .in('log_type', ['error', 'warning'])
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (logs && logs.length > 0) {
+        for (const log of logs) {
+          const msg = log.message || '';
+          // Khớp pattern: [+84xxx] Lỗi gửi tới nhóm 'Tên Nhóm' ---- Nội dung lỗi HOẶC : Nội dung lỗi
+          const match = msg.match(/Lỗi gửi tới nhóm '([^']+)'\s*(?:----|:)\s*(.+)/);
+          if (match) {
+            const groupTitle = match[1].trim();
+            const rawError = match[2].trim();
+            const friendlyError = formatFriendlyLogMessage(rawError);
+            const isForb = friendlyError.toLowerCase().includes('khóa chat') || friendlyError.toLowerCase().includes('admin');
+            const isBan = friendlyError.toLowerCase().includes('cấm chat') || friendlyError.toLowerCase().includes('spambot');
+
+            if (!result[groupTitle]) {
+              result[groupTitle] = {
+                last_error: friendlyError,
+                raw_error: rawError,
+                last_error_at: log.created_at,
+                is_skipped: isForb,
+                skip_reason: isForb ? 'Nhóm khóa chat (Chỉ Admin)' : (isBan ? 'Bị cấm chat' : ''),
+                is_forbidden: isForb,
+                is_banned: isBan
+              };
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi tải bot_logs từ Supabase:', err);
+  }
+
+  return result;
 }
 
 export async function getApiGuide() {
