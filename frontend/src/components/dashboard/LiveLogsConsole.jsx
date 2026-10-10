@@ -10,6 +10,7 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
+import { formatFriendlyLogMessage } from '../../lib/api';
 
 export default function LiveLogsConsole({
   logs = [],
@@ -314,15 +315,20 @@ export default function LiveLogsConsole({
                   )}
 
                   {/* Message content */}
-                  <span style={{
-                    color: isError ? '#fca5a5' : isWarning ? '#fde68a' : 'var(--text-secondary)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    minWidth: 0
-                  }} title={log.message}>
-                    {log.message}
-                  </span>
+                  {(() => {
+                    const friendlyText = formatFriendlyLogMessage(log.message);
+                    return (
+                      <span style={{
+                        color: isError ? '#fca5a5' : isWarning ? '#fde68a' : 'var(--text-secondary)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        minWidth: 0
+                      }} title={friendlyText}>
+                        {friendlyText}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             );

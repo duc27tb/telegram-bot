@@ -259,7 +259,7 @@ export default function AutoJoinModal({ isOpen, onClose, account, onComplete }) 
       <div 
         className="modal-content" 
         onClick={(e) => e.stopPropagation()} 
-        style={{ maxWidth: '640px', width: '92%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+        style={{ maxWidth: '520px', width: '92%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
       >
         {/* Header */}
         <div className="modal-header">
@@ -295,24 +295,21 @@ export default function AutoJoinModal({ isOpen, onClose, account, onComplete }) 
 
         {/* Body */}
         <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '20px' }}>
-          {/* Cảnh báo an toàn Telegram (Anti-Ban Advisory) */}
+          {/* Bảo vệ an toàn Anti-Ban */}
           <div style={{
-            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.05) 100%)',
-            border: '1px solid rgba(99, 102, 241, 0.25)',
+            background: 'rgba(99, 102, 241, 0.08)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
             borderRadius: 'var(--radius-md)',
-            padding: '12px 14px',
-            marginBottom: '16px',
+            padding: '10px 12px',
+            marginBottom: '14px',
             display: 'flex',
-            gap: '10px',
-            alignItems: 'flex-start'
+            gap: '8px',
+            alignItems: 'center',
+            fontSize: '12px',
+            color: 'var(--text-secondary)'
           }}>
-            <ShieldCheck size={20} color="#818cf8" style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div style={{ fontSize: '12px', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
-              <strong style={{ color: 'var(--primary-light)', display: 'block', marginBottom: '2px' }}>
-                Cơ Chế Bảo Vệ Chống Khóa Tài Khoản (Anti-Ban):
-              </strong>
-              Hệ thống tự động tạo <strong>độ trễ ngẫu nhiên (Jitter)</strong> giữa mỗi nhóm và lắng nghe tín hiệu <code>FloodWait</code> từ Telegram. Nếu nick mới tạo, khuyến nghị không join quá 10–15 nhóm/ngày để giữ tài khoản an toàn tuyệt đối.
-            </div>
+            <ShieldCheck size={16} color="var(--primary-light)" style={{ flexShrink: 0 }} />
+            <span>Tự động tạo độ trễ ngẫu nhiên và tạm dừng an toàn chống Telegram chặn nick.</span>
           </div>
 
           {/* Thiết lập độ trễ an toàn */}
@@ -321,43 +318,39 @@ export default function AutoJoinModal({ isOpen, onClose, account, onComplete }) 
               background: 'rgba(255, 255, 255, 0.02)', 
               border: '1px solid var(--border-subtle)', 
               borderRadius: 'var(--radius-md)', 
-              padding: '12px 14px',
-              marginBottom: '16px' 
+              padding: '10px 12px',
+              marginBottom: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px'
             }}>
-              <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '10px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Clock size={15} color="var(--primary-light)" />
-                <span>Khoảng thời gian nghỉ ngẫu nhiên giữa 2 nhóm:</span>
+                <span>Nghỉ giữa 2 nhóm:</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Từ:</span>
-                  <input
-                    type="number"
-                    min="3"
-                    max="60"
-                    value={minDelay}
-                    onChange={(e) => setMinDelay(Math.max(3, parseInt(e.target.value) || 3))}
-                    style={{ width: '64px', padding: '6px 8px', textAlign: 'center' }}
-                    className="form-input"
-                  />
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>giây</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Đến:</span>
-                  <input
-                    type="number"
-                    min={minDelay + 1}
-                    max="120"
-                    value={maxDelay}
-                    onChange={(e) => setMaxDelay(Math.max(minDelay + 1, parseInt(e.target.value) || minDelay + 1))}
-                    style={{ width: '64px', padding: '6px 8px', textAlign: 'center' }}
-                    className="form-input"
-                  />
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>giây</span>
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  (Khuyên dùng: 6 - 12s cho nick an toàn)
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="number"
+                  min="3"
+                  max="60"
+                  value={minDelay}
+                  onChange={(e) => setMinDelay(Math.max(3, parseInt(e.target.value) || 3))}
+                  style={{ width: '56px', padding: '5px 6px', textAlign: 'center' }}
+                  className="form-input"
+                />
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>-</span>
+                <input
+                  type="number"
+                  min={minDelay + 1}
+                  max="120"
+                  value={maxDelay}
+                  onChange={(e) => setMaxDelay(Math.max(minDelay + 1, parseInt(e.target.value) || minDelay + 1))}
+                  style={{ width: '56px', padding: '5px 6px', textAlign: 'center' }}
+                  className="form-input"
+                />
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>giây</span>
               </div>
             </div>
           )}
@@ -447,95 +440,51 @@ export default function AutoJoinModal({ isOpen, onClose, account, onComplete }) 
           )}
 
           {/* Danh sách chọn nhóm chung (khi chưa chạy) */}
+          {/* Tự động tham gia tất cả nhóm chung */}
           {!isRunning && !isCompleted && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
-                  Chọn Nhóm Chung Muốn Tham Gia ({selectedGroupIds.size}/{masterGroups.length}):
-                </div>
-                {masterGroups.length > 0 && (
-                  <button 
-                    onClick={toggleSelectAll} 
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '11px', padding: '3px 8px' }}
-                  >
-                    {selectedGroupIds.size === masterGroups.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-                  </button>
-                )}
-              </div>
-
               {loadingGroups ? (
                 <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
                   <Loader2 size={24} className="spin" style={{ margin: '0 auto 8px' }} />
-                  <div>Đang tải kho nhóm chung...</div>
+                  <div>Đang nạp danh sách nhóm chung...</div>
                 </div>
               ) : masterGroups.length === 0 ? (
                 <div style={{
                   textAlign: 'center',
-                  padding: '36px 16px',
+                  padding: '30px 16px',
                   background: 'rgba(255, 255, 255, 0.02)',
                   borderRadius: 'var(--radius-md)',
                   border: '1px dashed var(--border-subtle)'
                 }}>
-                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-main)', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', marginBottom: '4px' }}>
                     Kho nhóm chung đang trống!
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Bạn chưa có nhóm nào trong kho nhóm chung. Hãy mở tab "Kho Nhóm Chung" hoặc bấm biểu tượng ⭐ ở danh sách nhóm để lưu vào kho.
+                    Bạn chưa có link nhóm nào trong kho nhóm chung. Hãy mở tab "Kho Nhóm Chung" để thêm link nhóm trước.
                   </div>
                 </div>
               ) : (
                 <div style={{
-                  maxHeight: '220px',
-                  overflowY: 'auto',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '6px'
+                  padding: '14px 16px',
+                  borderRadius: '10px',
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
                 }}>
-                  {masterGroups.map((grp) => {
-                    const isSelected = selectedGroupIds.has(grp.id);
-                    return (
-                      <div
-                        key={grp.id}
-                        onClick={() => toggleSelectGroup(grp.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '8px 10px',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          background: isSelected ? 'rgba(99, 102, 241, 0.08)' : 'transparent',
-                          border: isSelected ? '1px solid rgba(99, 102, 241, 0.25)' : '1px solid transparent',
-                          marginBottom: '4px',
-                          transition: 'all 0.15s'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            style={{ cursor: 'pointer' }}
-                          />
-                          <div>
-                            <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-main)' }}>
-                              {grp.group_title}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                              {grp.invite_link}
-                            </div>
-                          </div>
-                        </div>
-
-                        {grp.notes && (
-                          <span style={{ fontSize: '10px', padding: '2px 6px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: '4px', color: 'var(--text-muted)' }}>
-                            {grp.notes}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>
+                      Sẵn sàng tham gia tất cả {masterGroups.length} nhóm chung
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Hệ thống sẽ tự động đưa nick này tham gia toàn bộ nhóm theo độ trễ ngẫu nhiên.
+                    </div>
+                  </div>
+                  <span className="badge badge-primary" style={{ padding: '4px 10px', fontSize: '12px', fontWeight: '700', flexShrink: 0 }}>
+                    {masterGroups.length} nhóm
+                  </span>
                 </div>
               )}
             </div>

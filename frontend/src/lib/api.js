@@ -372,4 +372,101 @@ export async function getAdminAuditLogs(adminId, limit = 50, category = 'ALL') {
   return res.json();
 }
 
+/**
+ * Chuyển đổi các thông báo lỗi kỹ thuật Telegram MTProto sang tiếng Việt ngắn gọn.
+ * Định dạng chuẩn: [+84...] Lỗi gửi tới nhóm '...' ---- [Lỗi tiếng Việt ngắn gọn]
+ */
+export function formatFriendlyLogMessage(msg) {
+  if (!msg || typeof msg !== 'string') return msg;
+
+  // Nếu thông báo chứa lỗi Telegram tiếng Anh (VD: Telegram says: [400 USER_BANNED_IN_CHANNEL]...)
+  const hasTelegramError = 
+    msg.includes('Telegram says:') || 
+    msg.includes('USER_BANNED_IN_CHANNEL') || 
+    msg.includes('CHAT_WRITE_FORBIDDEN') ||
+    msg.includes('FLOOD_WAIT') ||
+    msg.includes('SLOWMODE_WAIT') ||
+    msg.includes('CHANNEL_PRIVATE') ||
+    msg.includes('INVITE_HASH_EXPIRED') ||
+    msg.includes('PEER_ID_INVALID') ||
+    msg.includes('CHAT_INVALID') ||
+    msg.includes('CHANNEL_INVALID') ||
+    msg.includes('AUTH_KEY_DUPLICATED') ||
+    msg.includes('AUTH_KEY_UNREGISTERED') ||
+    msg.includes('SESSION_REVOKED') ||
+    msg.includes('USER_DEACTIVATED') ||
+    msg.includes('USER_RESTRICTED') ||
+    msg.includes('CHAT_RESTRICTED') ||
+    msg.includes('MESSAGE_TOO_LONG') ||
+    msg.includes('MSG_TOO_LONG') ||
+    msg.includes('caused by "');
+
+  if (!hasTelegramError) {
+    return msg;
+  }
+
+  // Tách phần tiền tố "[+84...] Lỗi gửi tới nhóm '...'" nếu có
+  let prefix = '';
+  let errorDetail = msg;
+
+  const prefixMatch = msg.match(/^(\[\+?\d+\]\s*Lỗi gửi tới nhóm\s*['"][^'"]+['"])(?:\s*[:\-—]+\s*|\s*----\s*)(.*)$/s);
+  if (prefixMatch) {
+    prefix = prefixMatch[1].trim();
+    errorDetail = prefixMatch[2].trim();
+  } else {
+    const fallbackMatch = msg.match(/^(\[\+?\d+\]\s*Lỗi gửi tới nhóm\s*[^:\-]+)(?::\s*|\s*----\s*)(.*)$/s);
+    if (fallbackMatch) {
+      prefix = fallbackMatch[1].trim();
+      errorDetail = fallbackMatch[2].trim();
+    }
+  }
+
+  // Dịch mã lỗi Telegram sang tiếng Việt ngắn gọn
+  let viError = '';
+  if (errorDetail.includes('USER_BANNED_IN_CHANNEL')) {
+    viError = 'Tài khoản bị cấm chat trong nhóm này (hoặc đang bị @SpamBot chặn)';
+  } else if (errorDetail.includes('CHAT_WRITE_FORBIDDEN')) {
+    viError = 'Nhóm đã khóa chat (chỉ Admin mới có quyền gửi tin)';
+  } else if (errorDetail.includes('FLOOD_WAIT') || errorDetail.includes('FloodWait')) {
+    const secMatch = errorDetail.match(/(\d+)/);
+    const sec = secMatch ? `${secMatch[1]}s` : 'một lát';
+    viError = `Bị Telegram tạm giới hạn tần suất gửi tin (cần nghỉ ${sec})`;
+  } else if (errorDetail.includes('SLOWMODE_WAIT')) {
+    const secMatch = errorDetail.match(/(\d+)/);
+    const sec = secMatch ? ` (phải đợi ${secMatch[1]}s)` : '';
+    viError = `Nhóm đang bật chế độ gửi chậm Slowmode${sec}`;
+  } else if (errorDetail.includes('CHANNEL_PRIVATE') || errorDetail.includes('INVITE_HASH_EXPIRED')) {
+    viError = 'Nhóm kín hoặc link hết hạn, nick chưa có quyền vào nhóm';
+  } else if (errorDetail.includes('PEER_ID_INVALID') || errorDetail.includes('CHAT_INVALID') || errorDetail.includes('CHANNEL_INVALID')) {
+    viError = 'Nhóm không tồn tại hoặc tài khoản đã rời khỏi nhóm';
+  } else if (errorDetail.includes('USER_RESTRICTED') || errorDetail.includes('CHAT_RESTRICTED')) {
+    viError = 'Tài khoản đang bị Telegram hạn chế quyền gửi tin';
+  } else if (errorDetail.includes('MSG_TOO_LONG') || errorDetail.includes('MESSAGE_TOO_LONG')) {
+    viError = 'Nội dung tin nhắn vượt quá độ dài tối đa của Telegram';
+  } else if (errorDetail.includes('USER_DEACTIVATED')) {
+    viError = 'Tài khoản Telegram đã bị khóa hoặc vô hiệu hóa';
+  } else if (errorDetail.includes('AUTH_KEY_DUPLICATED')) {
+    viError = 'Trùng phiên đăng nhập (vui lòng bấm Đăng Nhập Lại)';
+  } else if (errorDetail.includes('AUTH_KEY_UNREGISTERED') || errorDetail.includes('SESSION_REVOKED')) {
+    viError = 'Phiên đăng nhập đã hết hạn trên Telegram';
+  } else if (errorDetail.includes('INPUT_USER_DEACTIVATED') || errorDetail.includes('USER_IS_BLOCKED')) {
+    viError = 'Người nhận hoặc nhóm đã chặn tài khoản này';
+  } else if (errorDetail.includes('CHAT_SEND_PLAIN_FORBIDDEN')) {
+    viError = 'Nhóm cấm gửi tin nhắn văn bản';
+  } else if (errorDetail.includes('CHAT_SEND_MEDIA_FORBIDDEN')) {
+    viError = 'Nhóm cấm gửi file ảnh hoặc media';
+  } else {
+    let clean = errorDetail
+      .replace(/Telegram says:\s*\[\d+\s+[A-Z_]+\]\s*-\s*/gi, '')
+      .replace(/\(caused by ".*?"\)/gi, '')
+      .trim();
+    viError = clean || 'Lỗi kết nối gửi tin Telegram';
+  }
+
+  if (prefix) {
+    return `${prefix} ---- ${viError}`;
+  }
+  return viError;
+}
+
 

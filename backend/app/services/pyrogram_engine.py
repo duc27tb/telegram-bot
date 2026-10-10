@@ -43,6 +43,68 @@ def parse_spintax(text: str) -> str:
         iters += 1
     return text
 
+def format_telegram_error_vi(err_str: str) -> str:
+    """Chuyển đổi thông báo lỗi thô từ Telegram MTProto sang tiếng Việt ngắn gọn, dễ hiểu cho người dùng"""
+    if not err_str:
+        return "Lỗi gửi tin không xác định"
+
+    # 1. Bị cấm gửi tin trong channel/supergroup (do @SpamBot hoặc Admin ban)
+    if "USER_BANNED_IN_CHANNEL" in err_str:
+        return "Tài khoản bị cấm chat trong nhóm này (hoặc đang bị @SpamBot chặn)"
+
+    # 2. Nhóm khóa chat, chỉ cho phép admin gửi
+    if "CHAT_WRITE_FORBIDDEN" in err_str:
+        return "Nhóm đã khóa chat (chỉ Admin mới có quyền gửi tin)"
+
+    # 3. Giới hạn tần suất FloodWait
+    if "FLOOD_WAIT" in err_str or "FloodWait" in err_str:
+        m = re.search(r"(\d+)", err_str)
+        sec = m.group(1) if m else "một lát"
+        return f"Bị Telegram tạm giới hạn tần suất gửi tin (cần nghỉ {sec}s)"
+
+    # 4. Nhóm bật chế độ gửi chậm (Slowmode)
+    if "SLOWMODE_WAIT" in err_str:
+        m = re.search(r"(\d+)", err_str)
+        sec = m.group(1) if m else ""
+        return f"Nhóm đang bật chế độ gửi chậm Slowmode (phải đợi {sec}s)"
+
+    # 5. Nhóm kín hoặc link hết hạn
+    if "CHANNEL_PRIVATE" in err_str or "INVITE_HASH_EXPIRED" in err_str:
+        return "Nhóm kín hoặc link hết hạn, nick chưa có quyền vào nhóm"
+
+    # 6. Nhóm không tồn tại hoặc nick đã rời khỏi nhóm
+    if "PEER_ID_INVALID" in err_str or "CHAT_INVALID" in err_str or "CHANNEL_INVALID" in err_str:
+        return "Nhóm không tồn tại hoặc tài khoản đã rời khỏi nhóm"
+
+    # 7. Tài khoản bị hạn chế
+    if "USER_RESTRICTED" in err_str or "CHAT_RESTRICTED" in err_str:
+        return "Tài khoản đang bị Telegram hạn chế quyền gửi tin"
+
+    # 8. Nội dung tin quá dài
+    if "MSG_TOO_LONG" in err_str or "MESSAGE_TOO_LONG" in err_str:
+        return "Nội dung tin nhắn vượt quá độ dài tối đa của Telegram"
+
+    # 9. Tài khoản bị vô hiệu hóa
+    if "USER_DEACTIVATED" in err_str:
+        return "Tài khoản Telegram đã bị khóa hoặc vô hiệu hóa"
+
+    # 10. Trùng phiên
+    if "AUTH_KEY_DUPLICATED" in err_str:
+        return "Trùng phiên đăng nhập (vui lòng bấm Đăng Nhập Lại)"
+
+    # 11. Hết hạn phiên
+    if "AUTH_KEY_UNREGISTERED" in err_str or "SESSION_REVOKED" in err_str:
+        return "Phiên đăng nhập đã hết hạn trên Telegram"
+
+    # 12. Bị người nhận chặn
+    if "INPUT_USER_DEACTIVATED" in err_str or "USER_IS_BLOCKED" in err_str:
+        return "Người nhận hoặc nhóm đã chặn tài khoản này"
+
+    # Lược bỏ các từ khóa kỹ thuật Telegram says: [400 ...] caused by "..."
+    clean = re.sub(r'Telegram says:\s*\[\d+\s+([A-Z_]+)\]\s*-\s*', '', err_str)
+    clean = re.sub(r'\(caused by ".*?"\)', '', clean).strip()
+    return clean or "Lỗi kết nối gửi tin Telegram"
+
 class PyrogramEngine:
     def __init__(self):
         # Lưu các client đang chạy: { account_id: Client }
@@ -515,7 +577,7 @@ class PyrogramEngine:
                                 "user_id": user_id,
                                 "account_id": acc_id,
                                 "log_type": "warning",
-                                "message": f"Tài khoản {phone} bị Telegram giới hạn FloodWait {wait_sec}s. Tự động chuyển tài khoản tiếp theo..."
+                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- Bị Telegram tạm giới hạn FloodWait (cần nghỉ {wait_sec}s)"
                             }).execute()
                             # Tạm dừng gửi trên tài khoản này trong chu kỳ hiện tại
                             break
@@ -526,16 +588,17 @@ class PyrogramEngine:
                                 "user_id": user_id,
                                 "account_id": acc_id,
                                 "log_type": "warning",
-                                "message": f"[{phone}] Nhóm '{g_title}' đã tắt quyền gửi tin nhắn của thành viên."
+                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- Nhóm đã khóa chat (chỉ Admin mới có quyền gửi tin)"
                             }).execute()
 
                         except Exception as e:
                             cycle_error_count += 1
+                            err_vi = format_telegram_error_vi(str(e))
                             sb.table("bot_logs").insert({
                                 "user_id": user_id,
                                 "account_id": acc_id,
                                 "log_type": "error",
-                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}': {str(e)}"
+                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- {err_vi}"
                             }).execute()
 
                         # Cơ chế bảo vệ 2: Giãn cách thời gian ngẫu nhiên chống khóa nick (NUI-03 Anti-Ban Jitter)

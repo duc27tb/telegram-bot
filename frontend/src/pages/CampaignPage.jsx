@@ -34,7 +34,8 @@ import {
   stopCampaign, 
   getCampaignStatus, 
   getCampaignLogs,
-  updateCampaignSettings 
+  updateCampaignSettings,
+  formatFriendlyLogMessage
 } from '../lib/api';
 import ConfirmModal from '../components/common/ConfirmModal';
 
@@ -1578,7 +1579,7 @@ export default function CampaignPage() {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}>
-                        {log.message}
+                        {formatFriendlyLogMessage(log.message)}
                       </span>
                     </div>
                   </div>
