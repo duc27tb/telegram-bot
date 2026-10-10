@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Phone, KeyRound, ShieldCheck, CheckCircle2, AlertCircle, Loader2, Crown } from 'lucide-react';
+import { X, Phone, KeyRound, ShieldCheck, CheckCircle2, AlertCircle, Loader2, Crown, ExternalLink, HelpCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { requestOTP, verifyOTP } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -44,6 +44,11 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
       if (initialAccount) {
         setPhone(initialAccount.phone_number || '');
         setApiId(initialAccount.api_id ? String(initialAccount.api_id) : '');
+        setApiHash(initialAccount.api_hash ? String(initialAccount.api_hash) : '');
+      } else {
+        setPhone('');
+        setApiId('');
+        setApiHash('');
       }
       if (user) {
         supabase
@@ -63,6 +68,10 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
     e.preventDefault();
     if (!phone) {
       setError('Vui lòng nhập số điện thoại');
+      return;
+    }
+    if (!initialAccount && (!apiId.trim() || !apiHash.trim())) {
+      setError('Bắt buộc phải nhập đầy đủ API ID và API Hash riêng của bạn! Vui lòng xem hướng dẫn bên dưới.');
       return;
     }
     if (isLimitReached) {
@@ -249,27 +258,105 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
               </span>
             </div>
 
+            {/* Cảnh báo đỏ nếu người dùng chưa nhập API ID hoặc API Hash */}
+            {!initialAccount && (!apiId.trim() || !apiHash.trim()) && (
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                marginBottom: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontWeight: '600', fontSize: '13px' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>Bắt buộc cần cung cấp API ID và API Hash riêng</span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#fca5a5', lineHeight: '1.5' }}>
+                  Để bảo vệ tài khoản và tránh bị Telegram quét spam hàng loạt do dùng chung cổng, bạn cần tự lấy API ID & Hash riêng của mình từ Telegram (hoàn toàn miễn phí).
+                </div>
+                <div>
+                  <a
+                    href="/guide/telegram-api"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      color: '#38bdf8',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    <span>👉 Xem video & 4 bước hướng dẫn lấy mã (chỉ 1 phút)</span>
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="form-group">
-                <label className="form-label">API ID (Tùy chọn)</label>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>API ID</span>
+                  <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
+                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>(Bắt buộc)</span>
+                </label>
                 <input
                   type="text"
-                  placeholder="Mặc định sẵn"
+                  placeholder="Ví dụ: 12345678"
                   className="form-input"
+                  style={{
+                    borderColor: !initialAccount && !apiId.trim() ? 'rgba(239, 68, 68, 0.5)' : undefined
+                  }}
                   value={apiId}
                   onChange={(e) => setApiId(e.target.value)}
+                  required={!initialAccount}
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">API Hash (Tùy chọn)</label>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>API Hash</span>
+                  <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
+                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>(Bắt buộc)</span>
+                </label>
                 <input
                   type="text"
-                  placeholder="Mặc định sẵn"
+                  placeholder="Ví dụ: 948150d078ea..."
                   className="form-input"
+                  style={{
+                    borderColor: !initialAccount && !apiHash.trim() ? 'rgba(239, 68, 68, 0.5)' : undefined
+                  }}
                   value={apiHash}
                   onChange={(e) => setApiHash(e.target.value)}
+                  required={!initialAccount}
                 />
               </div>
+            </div>
+
+            <div style={{ marginTop: '-4px', marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+              <a
+                href="/guide/telegram-api"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  color: '#38bdf8',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  textDecoration: 'none'
+                }}
+              >
+                <HelpCircle size={13} />
+                <span>Chưa có mã? Bấm xem video hướng dẫn lấy API</span>
+                <ExternalLink size={12} />
+              </a>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>

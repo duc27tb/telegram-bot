@@ -479,4 +479,29 @@ export async function getGroupsErrorStatus(userId) {
   }
 }
 
+export async function getApiGuide() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/guide/telegram-api`);
+    const data = await res.json();
+    return data && data.success ? data.data : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+export async function updateApiGuide(payload, adminId) {
+  const headers = getAdminHeaders(adminId);
+  const res = await fetch(`${BACKEND_URL}/api/guide/telegram-api`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || data.error || 'Lỗi khi cập nhật hướng dẫn');
+  }
+  return data;
+}
+
+
 

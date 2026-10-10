@@ -9,7 +9,7 @@ except RuntimeError:
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import accounts, campaigns, chat, wallet, activities, groups, admin
+from app.routers import accounts, campaigns, chat, wallet, activities, groups, admin, guide
 from app.services.pyrogram_engine import bot_engine
 from app.config import settings
 
@@ -68,6 +68,7 @@ app.include_router(chat.router)
 app.include_router(wallet.router)
 app.include_router(activities.router)
 app.include_router(admin.router)
+app.include_router(guide.router)
 
 @app.get("/")
 def health_check():

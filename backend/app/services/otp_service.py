@@ -39,8 +39,26 @@ class OTPService:
     async def request_otp(phone: str, api_id: str = None, api_hash: str = None) -> Dict[str, Any]:
         """Gửi mã xác nhận OTP tới số điện thoại Telegram"""
         phone = normalize_phone(phone)
-        final_api_id = int(api_id or settings.DEFAULT_API_ID)
-        final_api_hash = api_hash or settings.DEFAULT_API_HASH
+        if not api_id or not str(api_id).strip():
+            return {
+                "success": False,
+                "error": "Bắt buộc phải nhập API ID riêng của bạn! Vui lòng xem hướng dẫn lấy API ID & API Hash."
+            }
+        if not api_hash or not str(api_hash).strip():
+            return {
+                "success": False,
+                "error": "Bắt buộc phải nhập API Hash riêng của bạn! Vui lòng xem hướng dẫn lấy API ID & API Hash."
+            }
+
+        try:
+            final_api_id = int(str(api_id).strip())
+        except ValueError:
+            return {
+                "success": False,
+                "error": "API ID không hợp lệ! API ID phải là một dãy số nguyên."
+            }
+
+        final_api_hash = str(api_hash).strip()
 
         # Khởi tạo client lưu trong RAM (không tạo file rác)
         temp_name = f"otp_{uuid.uuid4().hex[:8]}"

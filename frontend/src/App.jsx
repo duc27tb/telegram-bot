@@ -21,6 +21,7 @@ import ActivityLogPage from './pages/ActivityLogPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import PricingPage from './pages/PricingPage';
+import ApiGuidePage from './pages/ApiGuidePage';
 import AdminSidebar from './components/admin/AdminSidebar';
 import AdminHeader from './components/admin/AdminHeader';
 import ConfirmModal from './components/common/ConfirmModal';
@@ -262,6 +263,8 @@ function MainApp() {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/activities" element={<ActivityLogPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/guide/telegram-api" element={<ApiGuidePage />} />
+          <Route path="/guide" element={<ApiGuidePage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
 
@@ -305,9 +308,13 @@ function AppRouter() {
     );
   }
 
-  // 0. Trang Đặt lại mật khẩu (khi click vào link từ email Supabase)
+  // 0. Trang Đặt lại mật khẩu & Trang Hướng dẫn công khai
   if (location.pathname === '/reset-password') {
     return <ResetPasswordPage />;
+  }
+
+  if (location.pathname === '/guide/telegram-api' || location.pathname === '/guide') {
+    return <ApiGuidePage />;
   }
 
   // 1. Chưa đăng nhập:

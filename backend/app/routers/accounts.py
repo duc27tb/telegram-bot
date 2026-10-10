@@ -154,10 +154,29 @@ async def request_otp(body: RequestOTPBody):
         except Exception as e:
             print(f"[request_otp check limit] {e}")
 
+    api_id_val = body.api_id
+    api_hash_val = body.api_hash
+
+    # Nếu đang đăng nhập lại tài khoản đã có, tự động lấy lại api_id/hash cũ từ DB nếu người dùng không điền lại
+    if (not api_id_val or not api_hash_val) and body.user_id and sb:
+        clean_phone = normalize_phone(body.phone_number)
+        try:
+            exist_acc = sb.table("telegram_accounts").select("api_id, api_hash").eq("user_id", body.user_id).eq("phone_number", clean_phone).execute()
+            if exist_acc.data and exist_acc.data[0].get("api_id") and exist_acc.data[0].get("api_hash"):
+                api_id_val = str(exist_acc.data[0]["api_id"])
+                api_hash_val = str(exist_acc.data[0]["api_hash"])
+        except Exception:
+            pass
+
+    if not api_id_val or not str(api_id_val).strip():
+        raise HTTPException(status_code=400, detail="Bắt buộc phải nhập API ID riêng của bạn! Vui lòng xem hướng dẫn lấy API ID & API Hash.")
+    if not api_hash_val or not str(api_hash_val).strip():
+        raise HTTPException(status_code=400, detail="Bắt buộc phải nhập API Hash riêng của bạn! Vui lòng xem hướng dẫn lấy API ID & API Hash.")
+
     result = await OTPService.request_otp(
         phone=body.phone_number,
-        api_id=body.api_id,
-        api_hash=body.api_hash
+        api_id=api_id_val,
+        api_hash=api_hash_val
     )
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Lỗi gửi mã OTP"))
