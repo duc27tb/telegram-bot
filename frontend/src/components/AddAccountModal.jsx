@@ -20,12 +20,12 @@ const normalizePhone = (input) => {
   return clean;
 };
 
-export default function AddAccountModal({ isOpen, onClose, onSuccess }) {
+export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAccount = null }) {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState(1); // 1: Nhập SĐT, 2: Nhập OTP
-  const [phone, setPhone] = useState('');
-  const [apiId, setApiId] = useState('');
+  const [phone, setPhone] = useState(initialAccount?.phone_number || '');
+  const [apiId, setApiId] = useState(initialAccount?.api_id ? String(initialAccount.api_id) : '');
   const [apiHash, setApiHash] = useState('');
   const [loginId, setLoginId] = useState('');
   const [code, setCode] = useState('');
@@ -37,19 +37,25 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess }) {
 
   const isVip = profile?.subscription_tier === 'VIP';
   const maxAccounts = isVip ? 10 : 3;
-  const isLimitReached = accountCount >= maxAccounts;
+  const isLimitReached = !initialAccount && accountCount >= maxAccounts;
 
   useEffect(() => {
-    if (isOpen && user) {
-      supabase
-        .from('telegram_accounts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .then(({ count }) => {
-          if (count !== null) setAccountCount(count);
-        });
+    if (isOpen) {
+      if (initialAccount) {
+        setPhone(initialAccount.phone_number || '');
+        setApiId(initialAccount.api_id ? String(initialAccount.api_id) : '');
+      }
+      if (user) {
+        supabase
+          .from('telegram_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .then(({ count }) => {
+            if (count !== null) setAccountCount(count);
+          });
+      }
     }
-  }, [isOpen, user]);
+  }, [isOpen, initialAccount, user]);
 
   if (!isOpen) return null;
 
@@ -123,7 +129,9 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess }) {
       <div className="modal-content">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h3 style={{ fontSize: '18px' }}>
-            {step === 1 ? 'Thêm Tài Khoản Telegram Mới' : 'Xác Thực Mã OTP'}
+            {initialAccount 
+              ? (step === 1 ? `Đăng Nhập Lại (${initialAccount.phone_number})` : 'Xác Thực Mã OTP Đăng Nhập Lại')
+              : (step === 1 ? 'Thêm Tài Khoản Telegram Mới' : 'Xác Thực Mã OTP')}
           </h3>
           <button 
             onClick={handleClose} 
@@ -132,6 +140,26 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess }) {
             <X size={20} />
           </button>
         </div>
+
+        {initialAccount && (
+          <div style={{
+            padding: '10px 14px',
+            borderRadius: '10px',
+            background: 'rgba(99, 102, 241, 0.12)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            marginBottom: '16px',
+            fontSize: '13px',
+            color: 'var(--primary-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <ShieldCheck size={18} style={{ flexShrink: 0 }} />
+            <span>
+              Đang làm mới phiên cho nick <strong>{initialAccount.account_name || initialAccount.phone_number}</strong> ({initialAccount.phone_number}). Toàn bộ <strong>nhóm mục tiêu và cấu hình sẽ được giữ nguyên 100%</strong>!
+            </span>
+          </div>
+        )}
 
         {error && (
           <div style={{
@@ -245,7 +273,7 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess }) {
               </button>
               <button type="submit" disabled={loading || isLimitReached} className="btn btn-primary">
                 {loading ? <Loader2 size={16} className="spin" /> : <Phone size={16} />}
-                <span>{loading ? 'Đang gửi mã...' : 'Nhận Mã Xác Nhận'}</span>
+                <span>{loading ? 'Đang gửi mã...' : (initialAccount ? 'Gửi OTP Đăng Nhập Lại' : 'Nhận Mã Xác Nhận')}</span>
               </button>
             </div>
           </form>

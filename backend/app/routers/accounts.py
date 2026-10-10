@@ -214,16 +214,25 @@ async def verify_otp(body: VerifyOTPBody):
         groups = result.get("groups", [])
         missing_cids = []
         if groups and acc_id:
+            existing_cids = set()
+            try:
+                exist_res = sb.table("target_groups").select("chat_id").eq("user_id", body.user_id).eq("account_id", acc_id).execute()
+                if exist_res.data:
+                    existing_cids = {g["chat_id"] for g in exist_res.data}
+            except Exception:
+                pass
+
             group_records = []
             links_map = {}
             for g in groups:
-                group_records.append({
-                    "user_id": body.user_id,
-                    "account_id": acc_id,
-                    "chat_id": g["chat_id"],
-                    "group_title": g["title"],
-                    "is_active": True
-                })
+                if g["chat_id"] not in existing_cids:
+                    group_records.append({
+                        "user_id": body.user_id,
+                        "account_id": acc_id,
+                        "chat_id": g["chat_id"],
+                        "group_title": g["title"],
+                        "is_active": True
+                    })
                 if g.get("link") or g.get("members_count"):
                     links_map[g["chat_id"]] = {
                         "link": g.get("link", ""),
@@ -233,7 +242,8 @@ async def verify_otp(body: VerifyOTPBody):
                 if not g.get("link"):
                     missing_cids.append(g["chat_id"])
 
-            sb.table("target_groups").insert(group_records).execute()
+            if group_records:
+                sb.table("target_groups").insert(group_records).execute()
             if links_map:
                 GroupLinkCache.batch_set_links(links_map)
 
@@ -263,13 +273,72 @@ async def start_account_bot(body: AccountActionBody):
     if not client:
         err_msg = bot_engine.last_errors.get(body.account_id, "")
         if "AUTH_KEY_DUPLICATED" in err_msg:
-            detail = f"Phiên đăng nhập Telegram ({acc.get('phone_number')}) đã bị thu hồi do AUTH_KEY_DUPLICATED (bị đăng nhập song song ở máy khác hoặc server khác). Vui lòng bấm 'Xóa' nick này và bấm 'Thêm Tài Khoản Mới' để kết nối lại!"
+            detail = f"Phiên đăng nhập Telegram ({acc.get('phone_number')}) đã bị thu hồi do AUTH_KEY_DUPLICATED (bị đăng nhập song song ở máy khác hoặc server khác). Bạn không cần xóa nick! Hãy bấm 'Đăng Nhập Lại' để nhận OTP mới và giữ nguyên toàn bộ nhóm!"
         elif "AUTH_KEY_UNREGISTERED" in err_msg or "SESSION_REVOKED" in err_msg:
-            detail = f"Phiên Telegram ({acc.get('phone_number')}) đã bị hủy đăng nhập từ ứng dụng Telegram. Vui lòng bấm 'Xóa' và thêm lại nick!"
+            detail = f"Phiên Telegram ({acc.get('phone_number')}) đã bị hủy đăng nhập từ ứng dụng Telegram. Hãy bấm 'Đăng Nhập Lại' để cấp mã OTP mới (giữ nguyên toàn bộ nhóm)!"
         else:
             detail = f"Không thể khởi động nick {acc.get('phone_number')}: {err_msg or 'Lỗi kết nối tới Telegram'}"
         raise HTTPException(status_code=400, detail=detail)
     return {"success": True, "message": "Bot tài khoản đã hoạt động!"}
+
+@router.get("/error-info/{account_id}")
+async def get_account_error_info(account_id: str):
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(status_code=500, detail="Chưa kết nối CSDL Supabase")
+
+    res = sb.table("telegram_accounts").select("id, user_id, phone_number, account_name, status, api_id").eq("id", account_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
+    acc = res.data[0]
+
+    raw_err = bot_engine.last_errors.get(account_id, "")
+    if not raw_err and acc.get("status") == "error":
+        full_res = sb.table("telegram_accounts").select("*").eq("id", account_id).execute()
+        if full_res.data:
+            await bot_engine.get_or_start_client(full_res.data[0])
+            raw_err = bot_engine.last_errors.get(account_id, "")
+
+    error_type = "UNKNOWN"
+    title = "Lỗi Phiên Đăng Nhập Telegram"
+    reason = "Phiên kết nối giữa hệ thống và tài khoản Telegram bị gián đoạn."
+    solution = "Bạn không cần xóa tài khoản! Bấm nút 'Đăng Nhập Lại' bên dưới để nhận mã OTP mới từ Telegram. Toàn bộ danh sách nhóm mục tiêu và cấu hình sẽ được giữ nguyên 100%."
+
+    if "AUTH_KEY_DUPLICATED" in raw_err:
+        error_type = "AUTH_KEY_DUPLICATED"
+        title = "Trùng Phiên Kết Nối Song Song (406)"
+        reason = "Telegram phát hiện khóa phiên (Session) của tài khoản này đang được kết nối cùng lúc từ 2 nơi (ví dụ: máy tính Local và máy chủ Deploy Render cùng chạy song song). Telegram đã tự động hủy khóa phiên để bảo vệ tài khoản."
+        solution = "Nếu đang chạy backend ở máy tính (local), hãy tắt terminal uvicorn khi dùng trên web Deploy. Sau đó bấm 'Đăng Nhập Lại' để nhận mã OTP mới (không cần xóa nick, giữ nguyên mọi nhóm)!"
+    elif "AUTH_KEY_UNREGISTERED" in raw_err or "SESSION_REVOKED" in raw_err:
+        error_type = "AUTH_KEY_UNREGISTERED"
+        title = "Phiên Đăng Nhập Đã Bị Đăng Xuất (401)"
+        reason = "Tài khoản đã bị đăng xuất khỏi hệ thống từ ứng dụng Telegram (do chọn Đăng xuất thiết bị khác)."
+        solution = "Bấm 'Đăng Nhập Lại' bên dưới để nhập mã OTP mới từ Telegram và khôi phục hoạt động."
+    elif "USER_DEACTIVATED" in raw_err:
+        error_type = "USER_DEACTIVATED"
+        title = "Tài Khoản Telegram Bị Hạn Chế / Vô Hiệu Hóa"
+        reason = "Telegram phản hồi tài khoản này đã bị khóa hoặc vô hiệu hóa bởi chính sách của Telegram."
+        solution = "Vui lòng mở ứng dụng Telegram để kiểm tra trạng thái nick này."
+    elif "FLOOD_WAIT" in raw_err:
+        error_type = "FLOOD_WAIT"
+        title = "Giới Hạn Tần Suất Gửi Yêu Cầu (Flood Wait)"
+        reason = f"Telegram yêu cầu tạm dừng hoạt động trong thời gian ngắn do gửi thao tác liên tục: {raw_err}"
+        solution = "Vui lòng đợi vài phút rồi bấm 'Bật' lại tài khoản."
+    elif raw_err:
+        reason = f"Chi tiết phản hồi từ Telegram: {raw_err}"
+
+    return {
+        "success": True,
+        "account_id": account_id,
+        "phone_number": acc.get("phone_number"),
+        "account_name": acc.get("account_name"),
+        "status": acc.get("status"),
+        "error_type": error_type,
+        "title": title,
+        "reason": reason,
+        "solution": solution,
+        "raw_error": raw_err or "Phiên Telegram gặp sự cố kết nối"
+    }
 
 @router.post("/stop-bot")
 async def stop_account_bot(body: AccountActionBody):

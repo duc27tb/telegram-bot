@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Play, Square, Trash2, RefreshCw, Phone, Shield, Loader2, Layers, ArrowRight, Zap, Crown, X, Check } from 'lucide-react';
+import { Plus, Play, Square, Trash2, RefreshCw, Phone, Shield, Loader2, Layers, ArrowRight, Zap, Crown, X, Check, Info, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import AutoJoinModal from '../components/groups/AutoJoinModal';
 import ConfirmModal from '../components/common/ConfirmModal';
+import AddAccountModal from '../components/AddAccountModal';
 
-import { BACKEND_URL } from '../lib/api';
+import { BACKEND_URL, getAccountErrorInfo } from '../lib/api';
 
 export default function AccountsPage({ onOpenAddAccount }) {
   const { user, profile } = useAuth();
@@ -17,9 +18,47 @@ export default function AccountsPage({ onOpenAddAccount }) {
   const [actionLoading, setActionLoading] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  // State re-login và xem chi tiết lỗi phiên
+  const [reloginAccount, setReloginAccount] = useState(null);
+  const [errorInfoModalAccount, setErrorInfoModalAccount] = useState(null);
+  const [errorDetailLoading, setErrorDetailLoading] = useState(false);
+  const [errorDetailData, setErrorDetailData] = useState(null);
+
   const isVip = profile?.subscription_tier === 'VIP';
   const maxAccounts = isVip ? 10 : 3;
   const isQuotaExceeded = accounts.length >= maxAccounts;
+
+  const handleOpenErrorInfo = async (acc) => {
+    setErrorInfoModalAccount(acc);
+    setErrorDetailLoading(true);
+    setErrorDetailData(null);
+    try {
+      const data = await getAccountErrorInfo(acc.id);
+      if (data && data.success) {
+        setErrorDetailData(data);
+      } else {
+        setErrorDetailData({
+          phone_number: acc.phone_number,
+          account_name: acc.account_name,
+          error_type: 'AUTH_KEY_DUPLICATED',
+          title: 'Lỗi Phiên Đăng Nhập Telegram',
+          reason: 'Phiên kết nối của tài khoản này đã bị thu hồi hoặc hết hạn (do phát hiện kết nối song song hoặc đã đăng xuất trên ứng dụng).',
+          solution: 'Bạn không cần xóa tài khoản! Bấm nút "Đăng Nhập Lại" để nhận mã OTP mới từ Telegram. Toàn bộ nhóm mục tiêu và cấu hình sẽ được giữ nguyên 100%.'
+        });
+      }
+    } catch (err) {
+      setErrorDetailData({
+        phone_number: acc.phone_number,
+        account_name: acc.account_name,
+        error_type: 'UNKNOWN',
+        title: 'Lỗi Kết Nối',
+        reason: 'Không thể kết nối máy chủ để truy xuất thông tin lỗi.',
+        solution: 'Bạn có thể bấm "Đăng Nhập Lại" trực tiếp để lấy mã OTP mới từ Telegram.'
+      });
+    } finally {
+      setErrorDetailLoading(false);
+    }
+  };
 
   const handleAddAccountClick = () => {
     if (isQuotaExceeded) {
@@ -323,13 +362,52 @@ export default function AccountsPage({ onOpenAddAccount }) {
                       {acc.status === 'online' ? (
                         <span className="badge badge-online">Đang hoạt động</span>
                       ) : acc.status === 'error' ? (
-                        <span 
-                          className="badge" 
-                          style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}
-                          title="Phiên Telegram đã bị lỗi hoặc thu hồi. Hãy xóa và thêm lại nick!"
-                        >
-                          ⚠️ Lỗi phiên
-                        </span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span 
+                            className="badge" 
+                            style={{ 
+                              background: 'rgba(239, 68, 68, 0.15)', 
+                              color: '#f87171', 
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              cursor: 'pointer'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenErrorInfo(acc);
+                            }}
+                            title="Phiên Telegram gặp lỗi. Bấm để xem chi tiết & giải pháp!"
+                          >
+                            ⚠️ Lỗi phiên
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenErrorInfo(acc);
+                            }}
+                            className="btn-icon-subtle"
+                            style={{
+                              padding: '3px',
+                              width: '22px',
+                              height: '22px',
+                              color: '#f87171',
+                              background: 'rgba(239, 68, 68, 0.12)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              borderRadius: '50%',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title="Bấm vào để xem chi tiết nguyên nhân lỗi & cách đăng nhập lại"
+                          >
+                            <Info size={13} />
+                          </button>
+                        </div>
                       ) : (
                         <span className="badge badge-offline">Tạm dừng</span>
                       )}
@@ -338,8 +416,37 @@ export default function AccountsPage({ onOpenAddAccount }) {
                       {new Date(acc.created_at).toLocaleDateString('vi-VN')}
                     </td>
                     <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                      <div style={{ display: 'inline-flex', gap: '8px' }}>
-                        {isOnline ? (
+                      <div style={{ display: 'inline-flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {acc.status === 'error' ? (
+                          <>
+                            <button
+                              onClick={() => setReloginAccount(acc)}
+                              className="btn btn-warning btn-sm"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%)',
+                                border: '1px solid rgba(245, 158, 11, 0.45)',
+                                color: '#fbbf24',
+                                fontWeight: '600'
+                              }}
+                              title="Đăng nhập lại bằng OTP (Toàn bộ nhóm mục tiêu được giữ nguyên)"
+                            >
+                              <RefreshCw size={13} />
+                              <span>Đăng Nhập Lại</span>
+                            </button>
+                            <button
+                              onClick={() => handleStartBot(acc.id)}
+                              disabled={isLoading}
+                              className="btn btn-secondary btn-sm"
+                              title="Thử kết nối lại"
+                            >
+                              <Play size={13} />
+                              <span>Thử lại</span>
+                            </button>
+                          </>
+                        ) : isOnline ? (
                           <button
                             onClick={() => handleStopBot(acc.id)}
                             disabled={isLoading}
@@ -354,16 +461,16 @@ export default function AccountsPage({ onOpenAddAccount }) {
                             onClick={() => handleStartBot(acc.id)}
                             disabled={isLoading}
                             className="btn btn-primary btn-sm"
-                            title={acc.status === 'error' ? "Thử bật lại hoặc xóa nick để kết nối lại" : "Khởi động nick này"}
+                            title="Khởi động nick này"
                           >
                             <Play size={14} />
-                            <span>{acc.status === 'error' ? 'Bật lại' : 'Bật'}</span>
+                            <span>Bật</span>
                           </button>
                         )}
                         <button
                           onClick={() => setAccountToDelete(acc)}
                           className="btn btn-danger btn-sm"
-                          title="Xóa tài khoản"
+                          title="Xóa tài khoản khỏi hệ thống"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -520,6 +627,218 @@ export default function AccountsPage({ onOpenAddAccount }) {
           </div>
         </div>
       )}
+
+      {/* MODAL CHI TIẾT LỖI PHIÊN TELEGRAM */}
+      {errorInfoModalAccount && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => {
+            setErrorInfoModalAccount(null);
+            setErrorDetailData(null);
+          }} 
+          style={{ zIndex: 120 }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '520px',
+              padding: '26px',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5), 0 0 25px rgba(239, 68, 68, 0.15)'
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '12px',
+                  background: 'rgba(239, 68, 68, 0.12)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#f87171'
+                }}>
+                  <AlertTriangle size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
+                    {errorDetailData?.title || 'Thông Tin Lỗi Phiên Telegram'}
+                  </h3>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Nick: <strong style={{ color: 'var(--text-main)' }}>{errorInfoModalAccount.account_name || errorInfoModalAccount.phone_number}</strong> ({errorInfoModalAccount.phone_number})
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setErrorInfoModalAccount(null);
+                  setErrorDetailData(null);
+                }}
+                className="btn-icon-subtle"
+                style={{ cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {errorDetailLoading ? (
+              <div style={{ textAlign: 'center', padding: '36px 0' }}>
+                <Loader2 className="spin" size={28} style={{ margin: '0 auto 10px', color: 'var(--primary-light)' }} />
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Đang kiểm tra chi tiết lỗi từ máy chủ...</div>
+              </div>
+            ) : (
+              <div>
+                {/* Error Code Tag */}
+                {errorDetailData?.error_type && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#f87171',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      fontFamily: 'monospace'
+                    }}>
+                      MÃ LỖI: {errorDetailData.error_type}
+                    </span>
+                  </div>
+                )}
+
+                {/* Nguyên nhân */}
+                <div style={{
+                  background: 'var(--surface-color, rgba(255,255,255,0.03))',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  marginBottom: '14px',
+                  fontSize: '13px',
+                  lineHeight: '1.6',
+                  color: 'var(--text-secondary)'
+                }}>
+                  <div style={{ fontWeight: '600', color: 'var(--text-main)', marginBottom: '4px' }}>
+                    🔍 Nguyên nhân:
+                  </div>
+                  <div>
+                    {errorDetailData?.reason || 'Phiên kết nối của tài khoản Telegram này đã bị thu hồi hoặc hết hiệu lực.'}
+                  </div>
+                </div>
+
+                {/* Hướng dẫn giải pháp */}
+                <div style={{
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: '10px',
+                  padding: '14px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  lineHeight: '1.6',
+                  color: 'var(--text-main)'
+                }}>
+                  <div style={{ fontWeight: '700', color: 'var(--primary-light)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    💡 Giải pháp (Không cần xóa nick):
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)' }}>
+                    {errorDetailData?.solution || 'Bạn chỉ cần bấm "Đăng Nhập Lại", nhận mã OTP mới từ Telegram là xong. Toàn bộ nhóm mục tiêu và cấu hình sẽ được giữ nguyên 100%!'}
+                  </div>
+                </div>
+
+                {/* Raw Error */}
+                {errorDetailData?.raw_error && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Chi tiết thông báo từ Telegram MTProto:
+                    </div>
+                    <pre style={{
+                      margin: 0,
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      fontSize: '11px',
+                      color: '#94a3b8',
+                      overflowX: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all'
+                    }}>
+                      {errorDetailData.raw_error}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorInfoModalAccount(null);
+                      setErrorDetailData(null);
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 16px', fontSize: '13px' }}
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const acc = errorInfoModalAccount;
+                      setErrorInfoModalAccount(null);
+                      setErrorDetailData(null);
+                      handleStartBot(acc.id);
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 16px', fontSize: '13px' }}
+                  >
+                    <Play size={14} />
+                    <span>Thử Kết Nối Lại</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const acc = errorInfoModalAccount;
+                      setErrorInfoModalAccount(null);
+                      setErrorDetailData(null);
+                      setReloginAccount(acc);
+                    }}
+                    className="btn btn-primary"
+                    style={{
+                      padding: '8px 18px',
+                      fontSize: '13px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontWeight: '700'
+                    }}
+                  >
+                    <RefreshCw size={14} />
+                    <span>Đăng Nhập Lại Ngay</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ĐĂNG NHẬP LẠI BẰNG OTP (KHÔNG MẤT DỮ LIỆU NHÓM) */}
+      <AddAccountModal
+        isOpen={Boolean(reloginAccount)}
+        onClose={() => setReloginAccount(null)}
+        initialAccount={reloginAccount}
+        onSuccess={(msg) => {
+          setReloginAccount(null);
+          fetchAccounts();
+        }}
+      />
     </div>
   );
 }

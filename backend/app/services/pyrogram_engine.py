@@ -56,9 +56,6 @@ class PyrogramEngine:
 
     async def get_or_start_client(self, account: Dict[str, Any]) -> Optional[Client]:
         acc_id = str(account["id"])
-        if acc_id in self.active_clients and self.active_clients[acc_id].is_connected:
-            return self.active_clients[acc_id]
-
         user_id = str(account["user_id"])
         phone = account.get("phone_number", "")
         from app.services.aes_cipher import decrypt_session_string
@@ -68,6 +65,17 @@ class PyrogramEngine:
 
         if not session_str:
             return None
+
+        if acc_id in self.active_clients:
+            old_cli = self.active_clients[acc_id]
+            if old_cli.is_connected and getattr(old_cli, "_loaded_session", "") == session_str:
+                return old_cli
+            try:
+                if old_cli.is_connected:
+                    await old_cli.stop()
+            except Exception:
+                pass
+            del self.active_clients[acc_id]
 
         client = Client(
             name=f"acc_{acc_id[:8]}",
@@ -89,6 +97,7 @@ class PyrogramEngine:
 
         try:
             await client.start()
+            client._loaded_session = session_str
             self.active_clients[acc_id] = client
             # Cập nhật trạng thái online trong DB
             sb = get_supabase()

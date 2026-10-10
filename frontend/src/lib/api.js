@@ -38,6 +38,19 @@ export async function verifyOTP(loginId, code, password, userId) {
   }
 }
 
+export async function getAccountErrorInfo(accountId) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/accounts/error-info/${accountId}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, error: errData.detail || 'Không thể lấy thông tin lỗi' };
+    }
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: `Không thể kết nối máy chủ (${BACKEND_URL}).` };
+  }
+}
+
 export async function startCampaign(userId) {
   try {
     const res = await fetch(`${BACKEND_URL}/api/campaign/start`, {
