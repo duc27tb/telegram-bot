@@ -536,17 +536,17 @@ export default function AccountsPage({ onOpenAddAccount }) {
             className="modal-content"
             onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: '480px',
-              padding: '24px',
+              maxWidth: '420px',
+              padding: '22px',
               border: '1px solid rgba(99, 102, 241, 0.35)',
               boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5), 0 0 25px rgba(99, 102, 241, 0.15)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
-                  width: '38px',
-                  height: '38px',
+                  width: '36px',
+                  height: '36px',
                   borderRadius: '10px',
                   background: 'rgba(99, 102, 241, 0.15)',
                   border: '1px solid rgba(99, 102, 241, 0.3)',
@@ -555,14 +555,14 @@ export default function AccountsPage({ onOpenAddAccount }) {
                   justifyContent: 'center',
                   color: 'var(--primary-light)'
                 }}>
-                  <Zap size={20} />
+                  <Zap size={18} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '700', color: 'var(--text-main)' }}>
-                    Tự Động Tham Gia Nhóm Chung
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: 'var(--text-main)' }}>
+                    Tự Động Join Nhóm Chung
                   </h3>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Nick: <strong style={{ color: 'var(--text-main)' }}>{joinInfoModalAccount.account_name || joinInfoModalAccount.phone_number}</strong> ({joinInfoModalAccount.phone_number})
+                    Nick: <strong style={{ color: 'var(--text-main)' }}>{joinInfoModalAccount.phone_number}</strong>
                   </div>
                 </div>
               </div>
@@ -579,38 +579,26 @@ export default function AccountsPage({ onOpenAddAccount }) {
               background: 'rgba(99, 102, 241, 0.08)',
               border: '1px solid rgba(99, 102, 241, 0.2)',
               borderRadius: '10px',
-              padding: '14px',
+              padding: '12px 14px',
               marginBottom: '16px',
               fontSize: '13px',
-              lineHeight: 1.6,
+              lineHeight: 1.5,
               color: 'var(--text-secondary)'
             }}>
-              <p style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontWeight: '600' }}>
-                💡 Tính năng này hoạt động như thế nào?
-              </p>
-              <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <li>
-                  <strong>Tự động join toàn bộ nhóm chung (Master Groups)</strong>: Hệ thống sẽ ra lệnh cho nick này tự động tham gia vào tất cả các link nhóm bạn đã lưu trong kho nhóm chung.
-                </li>
-                <li>
-                  <strong>Không cần làm thủ công</strong>: Bạn không cần phải mở app Telegram để tìm kiếm và bấm Tham Gia từng nhóm một.
-                </li>
-                <li>
-                  <strong>Cơ chế Anti-Ban an toàn</strong>: Tự động giãn cách delay ngẫu nhiên (6s - 12s mỗi nhóm) để bảo vệ tài khoản không bị Telegram giới hạn tần suất.
-                </li>
-              </ul>
+              <div style={{ marginBottom: '6px', color: 'var(--text-main)' }}>
+                ⚡ Tự động đưa nick này tham gia <strong>toàn bộ Nhóm Chung</strong> đã lưu mà không cần làm thủ công.
+              </div>
+              <div style={{ color: 'var(--primary-light)', fontSize: '12px' }}>
+                🛡️ Tích hợp sẵn giãn cách ngẫu nhiên (6-12s/nhóm) chống khóa tài khoản.
+              </div>
             </div>
-
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 20px 0' }}>
-              Bạn có muốn mở danh sách nhóm chung và bắt đầu tiến trình tham gia nhóm cho nick này không?
-            </p>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 type="button"
                 onClick={() => setJoinInfoModalAccount(null)}
                 className="btn btn-secondary"
-                style={{ padding: '8px 16px', fontSize: '13px' }}
+                style={{ padding: '8px 14px', fontSize: '13px' }}
               >
                 Đóng
               </button>
@@ -624,7 +612,7 @@ export default function AccountsPage({ onOpenAddAccount }) {
                 }}
                 className="btn btn-primary"
                 style={{
-                  padding: '8px 18px',
+                  padding: '8px 16px',
                   fontSize: '13px',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -633,7 +621,7 @@ export default function AccountsPage({ onOpenAddAccount }) {
                 }}
               >
                 <Zap size={14} />
-                <span>Tiến Hành Tham Gia Nhóm</span>
+                <span>Tiến Hành Join Ngay</span>
               </button>
             </div>
           </div>

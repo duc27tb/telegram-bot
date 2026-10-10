@@ -84,6 +84,7 @@ async def update_settings(body: UpdateCampaignSettings):
     update_data = {}
     if body.group_delay_seconds is not None:
         update_data["group_delay_seconds"] = body.group_delay_seconds
+        bot_engine.custom_user_delays[body.user_id] = body.group_delay_seconds
     if body.cycle_delay_seconds is not None:
         update_data["cycle_delay_seconds"] = body.cycle_delay_seconds
     if body.forward_to_telegram is not None:

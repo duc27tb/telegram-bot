@@ -53,6 +53,8 @@ class PyrogramEngine:
         self.account_meta: Dict[str, Dict[str, Any]] = {}
         # Lưu nguyên nhân lỗi gần nhất khi khởi động: { account_id: str }
         self.last_errors: Dict[str, str] = {}
+        # Lưu thời gian giãn cách cập nhật động thời gian thực: { user_id: int }
+        self.custom_user_delays: Dict[str, int] = {}
 
     async def get_or_start_client(self, account: Dict[str, Any]) -> Optional[Client]:
         acc_id = str(account["id"])
@@ -482,6 +484,11 @@ class PyrogramEngine:
                         continue
 
                     for idx, grp in enumerate(target_groups_for_acc):
+                        # Cơ chế bảo vệ 1: Nếu người dùng vừa bấm Dừng tài khoản này thì lập tức ngắt gửi
+                        if acc_id not in self.active_clients:
+                            print(f"⏹️ [Campaign] Tài khoản {phone} đã được người dùng tắt (Offline). Lập tức dừng gửi sang các nhóm tiếp theo.")
+                            break
+
                         chat_id = grp["chat_id"]
                         g_title = grp.get("group_title") or str(chat_id)
 
@@ -531,10 +538,12 @@ class PyrogramEngine:
                                 "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}': {str(e)}"
                             }).execute()
 
-                        # Giãn cách thời gian ngẫu nhiên chống khóa nick (NUI-03 Anti-Ban Jitter)
+                        # Cơ chế bảo vệ 2: Giãn cách thời gian ngẫu nhiên chống khóa nick (NUI-03 Anti-Ban Jitter)
+                        # Đọc thời gian giãn cách cập nhật động ngay lập tức nếu người dùng vừa thay đổi trong lúc spam
                         if idx < len(target_groups_for_acc) - 1:
-                            jitter = random.uniform(-0.15, 0.20) * group_delay
-                            actual_delay = max(5.0, group_delay + jitter)
+                            effective_delay = self.custom_user_delays.get(user_id, group_delay)
+                            jitter = random.uniform(-0.15, 0.20) * effective_delay
+                            actual_delay = max(5.0, effective_delay + jitter)
                             await asyncio.sleep(actual_delay)
 
                 # Báo cáo hoàn tất chu kỳ qua Telegram Alert
