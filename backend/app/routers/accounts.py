@@ -135,7 +135,8 @@ class AccountActionBody(BaseModel):
 
 @router.post("/request-otp")
 async def request_otp(body: RequestOTPBody):
-    if body.user_id:
+    sb = get_supabase()
+    if body.user_id and sb:
         try:
             from app.services.wallet_store import LocalWalletStore
             tier = LocalWalletStore.get_subscription_tier(body.user_id)
@@ -164,6 +165,10 @@ async def request_otp(body: RequestOTPBody):
 
 @router.post("/verify-otp")
 async def verify_otp(body: VerifyOTPBody):
+    sb = get_supabase()
+    if not sb:
+        raise HTTPException(status_code=500, detail="Chưa kết nối CSDL Supabase")
+
     result = await OTPService.verify_otp(
         login_id=body.login_id,
         code=body.code,
