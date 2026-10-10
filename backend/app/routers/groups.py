@@ -1,5 +1,6 @@
 import json
 import asyncio
+import re
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -544,3 +545,81 @@ async def auto_join_master_groups(payload: AutoJoinRequest):
             "X-Accel-Buffering": "no"
         }
     )
+
+@router.get("/errors")
+async def get_groups_error_status(user_id: str = Query(...)):
+    """
+    Lấy danh sách lỗi gần nhất và trạng thái tự động bỏ qua (Circuit Breaker) của các nhóm mục tiêu.
+    Đồng bộ dữ liệu từ Database (bot_logs & target_groups) và runtime state của engine.
+    """
+    sb = get_supabase()
+    result: Dict[str, Any] = {}
+
+    # 1. Quét Circuit Breaker runtime state từ bot_engine
+    runtime_cb = getattr(bot_engine, "circuit_breakers", {}).get(user_id, {})
+    for cid, stat in runtime_cb.items():
+        cid_str = str(cid)
+        banned_cnt = stat.get("banned_count", 0)
+        is_forbidden = stat.get("forbidden", False)
+        is_skipped = is_forbidden or (banned_cnt >= 2)
+        skip_reason = ""
+        if is_forbidden:
+            skip_reason = "Nhóm khóa chat (Chỉ Admin) — Đã tự động bỏ qua"
+        elif banned_cnt >= 2:
+            skip_reason = f"Tài khoản bị cấm chat {banned_cnt} chu kỳ liên tiếp — Đã tự động bỏ qua"
+
+        result[cid_str] = {
+            "last_error": stat.get("last_error", ""),
+            "last_error_at": stat.get("last_error_at", ""),
+            "is_skipped": is_skipped,
+            "skip_reason": skip_reason,
+            "banned_count": banned_cnt,
+            "is_forbidden": is_forbidden
+        }
+
+    # 2. Đọc từ target_groups trong DB Supabase (nếu có cột last_error)
+    if sb:
+        try:
+            tg_res = sb.table("target_groups").select("chat_id, group_title, last_error, last_error_at").eq("user_id", user_id).not_.is_("last_error", "null").execute()
+            for r in (tg_res.data or []):
+                cid_str = str(r["chat_id"])
+                if cid_str not in result and r.get("last_error"):
+                    err_txt = r.get("last_error", "")
+                    is_forb = "khóa chat" in err_txt.lower() or "admin" in err_txt.lower()
+                    is_ban = "cấm chat" in err_txt.lower() or "spambot" in err_txt.lower()
+                    result[cid_str] = {
+                        "last_error": err_txt,
+                        "last_error_at": r.get("last_error_at"),
+                        "is_skipped": is_forb,
+                        "skip_reason": "Nhóm khóa chat" if is_forb else ("Bị cấm chat" if is_ban else ""),
+                        "is_forbidden": is_forb,
+                        "is_banned": is_ban
+                    }
+        except Exception:
+            pass
+
+    # 3. Quét bot_logs trong DB Supabase (Đảm bảo 100% lấy được lỗi đã lưu trong DB)
+    if sb:
+        try:
+            logs_res = sb.table("bot_logs").select("message, log_type, created_at").eq("user_id", user_id).in_("log_type", ["error", "warning"]).order("created_at", desc=True).limit(100).execute()
+            for log in (logs_res.data or []):
+                msg = log.get("message", "")
+                m = re.search(r"Lỗi gửi tới nhóm '([^']+)'\s*(?:----|:)\s*(.+)", msg)
+                if m:
+                    g_title = m.group(1).strip()
+                    err_text = m.group(2).strip()
+                    if g_title not in result:
+                        is_forb = "khóa chat" in err_text.lower() or "admin" in err_text.lower()
+                        is_ban = "cấm chat" in err_text.lower() or "spambot" in err_text.lower()
+                        result[g_title] = {
+                            "last_error": err_text,
+                            "last_error_at": log.get("created_at"),
+                            "is_skipped": is_forb,
+                            "skip_reason": "Nhóm khóa chat" if is_forb else ("Bị cấm chat" if is_ban else ""),
+                            "is_forbidden": is_forb,
+                            "is_banned": is_ban
+                        }
+        except Exception:
+            pass
+
+    return {"success": True, "data": result}

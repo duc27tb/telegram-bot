@@ -117,6 +117,8 @@ class PyrogramEngine:
         self.last_errors: Dict[str, str] = {}
         # Lưu thời gian giãn cách cập nhật động thời gian thực: { user_id: int }
         self.custom_user_delays: Dict[str, int] = {}
+        # Circuit Breaker tracking theo phiên gửi tin: { user_id: { chat_id: { "banned_count": int, "forbidden": bool, "last_error": str, "last_error_at": str } } }
+        self.circuit_breakers: Dict[str, Dict[int, Dict[str, Any]]] = {}
 
     async def get_or_start_client(self, account: Dict[str, Any]) -> Optional[Client]:
         acc_id = str(account["id"])
@@ -394,6 +396,10 @@ class PyrogramEngine:
         # Tự động dọn dẹp log quá 1 tiếng
         self._purge_old_bot_logs(user_id)
 
+        # Reset Circuit Breaker tracking khi người dùng bấm Khởi động lại (để quét lại tất cả nhóm)
+        if user_id in self.circuit_breakers:
+            self.circuit_breakers[user_id].clear()
+
         # Tạo background task chạy chu kỳ rải tin
         task = asyncio.create_task(self._campaign_worker_loop(user_id))
         self.campaign_tasks[user_id] = task
@@ -423,6 +429,10 @@ class PyrogramEngine:
         if user_id in self.campaign_tasks:
             self.campaign_tasks[user_id].cancel()
             del self.campaign_tasks[user_id]
+
+        # Reset Circuit Breaker tracking khi tạm dừng
+        if user_id in self.circuit_breakers:
+            self.circuit_breakers[user_id].clear()
 
         if sb:
             try:
@@ -554,6 +564,20 @@ class PyrogramEngine:
                         chat_id = grp["chat_id"]
                         g_title = grp.get("group_title") or str(chat_id)
 
+                        # Thuật toán Circuit Breaker: Tự động bỏ qua nhóm không khả dụng
+                        user_cb = self.circuit_breakers.setdefault(user_id, {})
+                        grp_cb = user_cb.get(chat_id, {})
+
+                        # 1. Bỏ qua nhóm khóa chat (CHAT_WRITE_FORBIDDEN - Chỉ Admin gửi) từ chu kỳ 2 trở đi
+                        if grp_cb.get("forbidden", False):
+                            print(f"⏩ [Circuit Breaker] Tự động bỏ qua nhóm '{g_title}' ({chat_id}) vì nhóm đã khóa chat (chỉ Admin mới có quyền gửi).")
+                            continue
+
+                        # 2. Bỏ qua nhóm bị cấm chat (USER_BANNED_IN_CHANNEL) từ chu kỳ 3 trở đi (đã lỗi liên tiếp 2 chu kỳ)
+                        if grp_cb.get("banned_count", 0) >= 2:
+                            print(f"⏩ [Circuit Breaker] Tự động bỏ qua nhóm '{g_title}' ({chat_id}) vì nick đã bị cấm chat liên tiếp {grp_cb['banned_count']} chu kỳ.")
+                            continue
+
                         try:
                             # Phân tích cú pháp Spintax ngẫu nhiên (UC-14 & NUI-02)
                             raw_template = random.choice(messages_pool)
@@ -561,6 +585,16 @@ class PyrogramEngine:
 
                             await client.send_message(chat_id=chat_id, text=final_message)
                             cycle_sent_count += 1
+
+                            # Khi gửi thành công: Xóa trạng thái lỗi khỏi Circuit Breaker
+                            if user_id in self.circuit_breakers and chat_id in self.circuit_breakers[user_id]:
+                                del self.circuit_breakers[user_id][chat_id]
+
+                            # Xóa lỗi trong target_groups nếu cột tồn tại
+                            try:
+                                sb.table("target_groups").update({"last_error": None, "last_error_at": None}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
+                            except Exception:
+                                pass
 
                             sb.table("bot_logs").insert({
                                 "user_id": user_id,
@@ -584,16 +618,61 @@ class PyrogramEngine:
 
                         except pyrogram_errors.ChatWriteForbidden:
                             cycle_error_count += 1
+                            err_msg = "Nhóm đã khóa chat (chỉ Admin mới có quyền gửi tin)"
+                            now_iso = datetime.now(timezone.utc).isoformat()
+
+                            # Đánh dấu nhóm khóa chat: Từ chu kỳ 2 trở đi bỏ qua nhóm này luôn
+                            user_cb = self.circuit_breakers.setdefault(user_id, {})
+                            user_cb[chat_id] = {
+                                "forbidden": True,
+                                "banned_count": 0,
+                                "last_error": err_msg,
+                                "last_error_at": now_iso
+                            }
+
+                            try:
+                                sb.table("target_groups").update({"last_error": err_msg, "last_error_at": now_iso}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
+                            except Exception:
+                                pass
+
                             sb.table("bot_logs").insert({
                                 "user_id": user_id,
                                 "account_id": acc_id,
                                 "log_type": "warning",
-                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- Nhóm đã khóa chat (chỉ Admin mới có quyền gửi tin)"
+                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- {err_msg}"
                             }).execute()
 
                         except Exception as e:
                             cycle_error_count += 1
-                            err_vi = format_telegram_error_vi(str(e))
+                            err_str = str(e)
+                            err_vi = format_telegram_error_vi(err_str)
+                            now_iso = datetime.now(timezone.utc).isoformat()
+
+                            user_cb = self.circuit_breakers.setdefault(user_id, {})
+                            curr_stat = user_cb.get(chat_id, {"banned_count": 0, "forbidden": False})
+
+                            if "USER_BANNED_IN_CHANNEL" in err_str:
+                                curr_stat["banned_count"] = curr_stat.get("banned_count", 0) + 1
+                                curr_stat["last_error"] = err_vi
+                                curr_stat["last_error_at"] = now_iso
+                                user_cb[chat_id] = curr_stat
+                                print(f"⚠️ [Circuit Breaker] Nhóm '{g_title}' ghi nhận cấm chat lần {curr_stat['banned_count']}/2 (Chu kỳ 3 sẽ tự động bỏ qua)")
+                            elif "CHAT_WRITE_FORBIDDEN" in err_str:
+                                curr_stat["forbidden"] = True
+                                curr_stat["last_error"] = err_vi
+                                curr_stat["last_error_at"] = now_iso
+                                user_cb[chat_id] = curr_stat
+                                print(f"⚠️ [Circuit Breaker] Nhóm '{g_title}' khóa chat (Chu kỳ 2 sẽ tự động bỏ qua)")
+                            else:
+                                curr_stat["last_error"] = err_vi
+                                curr_stat["last_error_at"] = now_iso
+                                user_cb[chat_id] = curr_stat
+
+                            try:
+                                sb.table("target_groups").update({"last_error": err_vi, "last_error_at": now_iso}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
+                            except Exception:
+                                pass
+
                             sb.table("bot_logs").insert({
                                 "user_id": user_id,
                                 "account_id": acc_id,

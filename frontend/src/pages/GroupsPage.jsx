@@ -16,12 +16,14 @@ import {
   Loader2,
   CheckCircle2,
   Star,
-  Zap
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { supabase } from '../lib/supabase';
+import { getGroupsErrorStatus } from '../lib/api';
 import AutoJoinModal from '../components/groups/AutoJoinModal';
 import MasterGroupsDrawer from '../components/groups/MasterGroupsDrawer';
 import BatchMasterConfirmModal from '../components/groups/BatchMasterConfirmModal';
@@ -34,6 +36,7 @@ let cachedAccounts = null;
 let cachedGroups = null;
 let cachedSelectedAccountId = null;
 let cachedGroupMetadata = null;
+let cachedGroupErrors = null;
 
 export default function GroupsPage() {
   const { user } = useAuth();
@@ -45,6 +48,7 @@ export default function GroupsPage() {
   const [accounts, setAccounts] = useState(() => cachedAccounts || []);
   const [groups, setGroups] = useState(() => cachedGroups || []);
   const [groupMetadata, setGroupMetadata] = useState(() => cachedGroupMetadata || {});
+  const [groupErrors, setGroupErrors] = useState(() => cachedGroupErrors || {});
   const [loading, setLoading] = useState(() => !cachedAccounts);
   const [groupsLoading, setGroupsLoading] = useState(false);
 
@@ -107,11 +111,12 @@ export default function GroupsPage() {
       setAccounts(accData);
       setGroups(grpData);
 
-      // Tải song song danh sách chat_id các nhóm chung & metadata nhóm (số thành viên, link)
+      // Tải song song danh sách chat_id các nhóm chung & metadata nhóm & trạng thái lỗi nhóm
       Promise.all([
         fetch(`${BACKEND_URL}/api/groups/master?user_id=${user.id}`).then(res => res.json()).catch(() => null),
-        fetch(`${BACKEND_URL}/api/groups/metadata`).then(res => res.json()).catch(() => null)
-      ]).then(([masterData, metaData]) => {
+        fetch(`${BACKEND_URL}/api/groups/metadata`).then(res => res.json()).catch(() => null),
+        getGroupsErrorStatus(user.id).catch(() => null)
+      ]).then(([masterData, metaData, errData]) => {
         if (masterData?.success && masterData.data) {
           const chatIds = new Set(masterData.data.map(g => String(g.chat_id)).filter(Boolean));
           setMasterGroupChatIds(chatIds);
@@ -119,6 +124,10 @@ export default function GroupsPage() {
         if (metaData?.success && metaData.data) {
           cachedGroupMetadata = metaData.data;
           setGroupMetadata(metaData.data);
+        }
+        if (errData) {
+          cachedGroupErrors = errData;
+          setGroupErrors(errData);
         }
       }).catch(() => {});
 
@@ -149,6 +158,30 @@ export default function GroupsPage() {
   useEffect(() => {
     fetchData();
   }, [user]);
+
+  // Lắng nghe realtime bot_logs để cập nhật trạng thái lỗi nhóm tức thì khi spam đang chạy
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel('groups_page_bot_logs_sync')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bot_logs', filter: `user_id=eq.${user.id}` },
+        () => {
+          getGroupsErrorStatus(user.id).then(errData => {
+            if (errData) {
+              cachedGroupErrors = errData;
+              setGroupErrors(errData);
+            }
+          }).catch(() => {});
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   // Sync selected account with URL changes khi người dùng bấm trực tiếp
   useEffect(() => {
@@ -818,6 +851,7 @@ export default function GroupsPage() {
                     const isMaster = masterGroupChatIds.has(String(grp.chat_id));
                     const meta = groupMetadata[String(grp.chat_id)];
                     const membersCount = meta?.members_count || 0;
+                    const grpErr = groupErrors[String(grp.chat_id)] || groupErrors[grp.group_title];
 
                     return (
                       <div key={grp.id} className={`group-row-item ${!grp.is_active ? 'inactive' : ''}`}>
@@ -884,6 +918,22 @@ export default function GroupsPage() {
                                   <Users size={11} />
                                   <span>-- TV</span>
                                 </span>
+                              )}
+                              {grpErr && grpErr.last_error && (
+                                <Tooltip text={grpErr.skip_reason ? `${grpErr.skip_reason} • ${grpErr.last_error}` : `Lỗi gần nhất: ${grpErr.last_error}`}>
+                                  <span 
+                                    className={`group-status-badge ${grpErr.is_skipped ? 'skipped' : 'warning'}`}
+                                  >
+                                    <AlertTriangle size={11} />
+                                    <span>
+                                      {grpErr.is_forbidden
+                                        ? 'Khóa chat (Chỉ Admin)'
+                                        : grpErr.is_skipped
+                                          ? 'Bỏ qua (Bị cấm chat)'
+                                          : 'Lỗi gửi tin'}
+                                    </span>
+                                  </span>
+                                </Tooltip>
                               )}
                             </div>
                           </div>

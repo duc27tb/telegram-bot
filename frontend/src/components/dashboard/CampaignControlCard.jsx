@@ -1,13 +1,13 @@
 import React from 'react';
-import { 
-  Radio, 
-  Square, 
-  Loader2, 
-  Users, 
-  Zap, 
-  MessageSquare, 
-  Sliders, 
-  ExternalLink 
+import {
+  Radio,
+  Square,
+  Loader2,
+  Users,
+  Zap,
+  MessageSquare,
+  Sliders,
+  ExternalLink
 } from 'lucide-react';
 
 export default function CampaignControlCard({
@@ -28,7 +28,7 @@ export default function CampaignControlCard({
       marginBottom: '20px',
       padding: '24px',
       background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.06) 100%)',
-      border: '1px solid rgba(16, 185, 129, 0.35)',
+      border: '2px solid rgba(16, 185, 129, 0.35)',
       boxShadow: '0 10px 30px rgba(16, 185, 129, 0.1)',
       transition: 'all 0.3s ease'
     }}>

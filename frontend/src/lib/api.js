@@ -469,4 +469,14 @@ export function formatFriendlyLogMessage(msg) {
   return viError;
 }
 
+export async function getGroupsErrorStatus(userId) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/groups/errors?user_id=${userId}`);
+    const data = await res.json();
+    return data && data.success ? data.data : {};
+  } catch (err) {
+    return {};
+  }
+}
+
 
