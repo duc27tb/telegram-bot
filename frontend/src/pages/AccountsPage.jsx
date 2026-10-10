@@ -24,6 +24,9 @@ export default function AccountsPage({ onOpenAddAccount }) {
   const [errorDetailLoading, setErrorDetailLoading] = useState(false);
   const [errorDetailData, setErrorDetailData] = useState(null);
 
+  // State popup thông tin xác nhận tự động Join Nhóm Chung
+  const [joinInfoModalAccount, setJoinInfoModalAccount] = useState(null);
+
   const isVip = profile?.subscription_tier === 'VIP';
   const maxAccounts = isVip ? 10 : 3;
   const isQuotaExceeded = accounts.length >= maxAccounts;
@@ -343,19 +346,46 @@ export default function AccountsPage({ onOpenAddAccount }) {
                           <span>Xem nhóm</span>
                           <ArrowRight size={12} />
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAccountForAutoJoin(acc);
-                            setShowAutoJoinModal(true);
-                          }}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '3px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary-light)' }}
-                          title="Tự động tham gia các nhóm chung mẫu cho tài khoản này"
-                        >
-                          <Zap size={11} />
-                          <span>⚡ Join Nhóm</span>
-                        </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAccountForAutoJoin(acc);
+                              setShowAutoJoinModal(true);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary-light)' }}
+                            title="Tự động tham gia các nhóm chung mẫu cho tài khoản này"
+                          >
+                            <Zap size={11} />
+                            <span>⚡ Join Nhóm</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setJoinInfoModalAccount(acc);
+                            }}
+                            className="btn-icon-subtle"
+                            style={{
+                              padding: '2px',
+                              width: '20px',
+                              height: '20px',
+                              color: 'var(--primary-light)',
+                              background: 'rgba(99, 102, 241, 0.12)',
+                              border: '1px solid rgba(99, 102, 241, 0.25)',
+                              borderRadius: '50%',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title="Bấm để xem giải thích & xác nhận tự động tham gia nhóm chung"
+                          >
+                            <Info size={11} />
+                          </button>
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -494,6 +524,121 @@ export default function AccountsPage({ onOpenAddAccount }) {
         account={selectedAccountForAutoJoin}
         onComplete={fetchAccounts}
       />
+
+      {/* MODAL GIẢI THÍCH & XÁC NHẬN TỰ ĐỘNG THAM GIA NHÓM CHUNG */}
+      {joinInfoModalAccount && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setJoinInfoModalAccount(null)} 
+          style={{ zIndex: 120 }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '480px',
+              padding: '24px',
+              border: '1px solid rgba(99, 102, 241, 0.35)',
+              boxShadow: '0 20px 45px rgba(0, 0, 0, 0.5), 0 0 25px rgba(99, 102, 241, 0.15)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--primary-light)'
+                }}>
+                  <Zap size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '700', color: 'var(--text-main)' }}>
+                    Tự Động Tham Gia Nhóm Chung
+                  </h3>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Nick: <strong style={{ color: 'var(--text-main)' }}>{joinInfoModalAccount.account_name || joinInfoModalAccount.phone_number}</strong> ({joinInfoModalAccount.phone_number})
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setJoinInfoModalAccount(null)}
+                className="btn-icon-subtle"
+                style={{ cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.08)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: '10px',
+              padding: '14px',
+              marginBottom: '16px',
+              fontSize: '13px',
+              lineHeight: 1.6,
+              color: 'var(--text-secondary)'
+            }}>
+              <p style={{ margin: '0 0 10px 0', color: 'var(--text-main)', fontWeight: '600' }}>
+                💡 Tính năng này hoạt động như thế nào?
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <li>
+                  <strong>Tự động join toàn bộ nhóm chung (Master Groups)</strong>: Hệ thống sẽ ra lệnh cho nick này tự động tham gia vào tất cả các link nhóm bạn đã lưu trong kho nhóm chung.
+                </li>
+                <li>
+                  <strong>Không cần làm thủ công</strong>: Bạn không cần phải mở app Telegram để tìm kiếm và bấm Tham Gia từng nhóm một.
+                </li>
+                <li>
+                  <strong>Cơ chế Anti-Ban an toàn</strong>: Tự động giãn cách delay ngẫu nhiên (6s - 12s mỗi nhóm) để bảo vệ tài khoản không bị Telegram giới hạn tần suất.
+                </li>
+              </ul>
+            </div>
+
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 20px 0' }}>
+              Bạn có muốn mở danh sách nhóm chung và bắt đầu tiến trình tham gia nhóm cho nick này không?
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setJoinInfoModalAccount(null)}
+                className="btn btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetAcc = joinInfoModalAccount;
+                  setJoinInfoModalAccount(null);
+                  setSelectedAccountForAutoJoin(targetAcc);
+                  setShowAutoJoinModal(true);
+                }}
+                className="btn btn-primary"
+                style={{
+                  padding: '8px 18px',
+                  fontSize: '13px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: '700'
+                }}
+              >
+                <Zap size={14} />
+                <span>Tiến Hành Tham Gia Nhóm</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL XÁC NHẬN XÓA TÀI KHOẢN TRONG MÀN HÌNH */}
       <ConfirmModal

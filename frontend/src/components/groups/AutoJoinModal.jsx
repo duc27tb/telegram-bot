@@ -14,8 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+import { BACKEND_URL } from '../../lib/api';
 
 export default function AutoJoinModal({ isOpen, onClose, account, onComplete }) {
   const { user } = useAuth();
