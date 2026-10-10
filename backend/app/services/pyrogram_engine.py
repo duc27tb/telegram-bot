@@ -51,6 +51,8 @@ class PyrogramEngine:
         self.campaign_tasks: Dict[str, asyncio.Task] = {}
         # Metadata account: { account_id: { "user_id": str, "phone": str } }
         self.account_meta: Dict[str, Dict[str, Any]] = {}
+        # Lưu nguyên nhân lỗi gần nhất khi khởi động: { account_id: str }
+        self.last_errors: Dict[str, str] = {}
 
     async def get_or_start_client(self, account: Dict[str, Any]) -> Optional[Client]:
         acc_id = str(account["id"])
@@ -98,6 +100,7 @@ class PyrogramEngine:
             return client
         except Exception as e:
             print(f"❌ Lỗi khởi động client {phone}: {e}")
+            self.last_errors[acc_id] = str(e)
             sb = get_supabase()
             if sb:
                 sb.table("telegram_accounts").update({

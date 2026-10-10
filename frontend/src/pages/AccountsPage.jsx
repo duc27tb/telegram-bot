@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 import AutoJoinModal from '../components/groups/AutoJoinModal';
 import ConfirmModal from '../components/common/ConfirmModal';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+import { BACKEND_URL } from '../lib/api';
 
 export default function AccountsPage({ onOpenAddAccount }) {
   const { user, profile } = useAuth();
@@ -87,14 +87,18 @@ export default function AccountsPage({ onOpenAddAccount }) {
   const handleStartBot = async (accountId) => {
     setActionLoading(accountId);
     try {
-      await fetch(`${BACKEND_URL}/api/accounts/start-bot`, {
+      const res = await fetch(`${BACKEND_URL}/api/accounts/start-bot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_id: accountId })
       });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Không thể khởi động tài khoản này!');
+      }
       fetchAccounts();
     } catch (e) {
-      alert('Không thể kết nối với Backend!');
+      alert(`Không thể kết nối với Backend (${BACKEND_URL})!`);
     } finally {
       setActionLoading(null);
     }
@@ -103,14 +107,18 @@ export default function AccountsPage({ onOpenAddAccount }) {
   const handleStopBot = async (accountId) => {
     setActionLoading(accountId);
     try {
-      await fetch(`${BACKEND_URL}/api/accounts/stop-bot`, {
+      const res = await fetch(`${BACKEND_URL}/api/accounts/stop-bot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_id: accountId })
       });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Lỗi khi dừng tài khoản!');
+      }
       fetchAccounts();
     } catch (e) {
-      alert('Không thể kết nối với Backend!');
+      alert(`Không thể kết nối với Backend (${BACKEND_URL})!`);
     } finally {
       setActionLoading(null);
     }
@@ -312,9 +320,19 @@ export default function AccountsPage({ onOpenAddAccount }) {
                       </div>
                     </td>
                     <td>
-                      <span className={`badge ${isOnline ? 'badge-online' : 'badge-offline'}`}>
-                        {isOnline ? 'Đang hoạt động' : 'Tạm dừng'}
-                      </span>
+                      {acc.status === 'online' ? (
+                        <span className="badge badge-online">Đang hoạt động</span>
+                      ) : acc.status === 'error' ? (
+                        <span 
+                          className="badge" 
+                          style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                          title="Phiên Telegram đã bị lỗi hoặc thu hồi. Hãy xóa và thêm lại nick!"
+                        >
+                          ⚠️ Lỗi phiên
+                        </span>
+                      ) : (
+                        <span className="badge badge-offline">Tạm dừng</span>
+                      )}
                     </td>
                     <td>
                       {new Date(acc.created_at).toLocaleDateString('vi-VN')}
@@ -336,10 +354,10 @@ export default function AccountsPage({ onOpenAddAccount }) {
                             onClick={() => handleStartBot(acc.id)}
                             disabled={isLoading}
                             className="btn btn-primary btn-sm"
-                            title="Khởi động nick này"
+                            title={acc.status === 'error' ? "Thử bật lại hoặc xóa nick để kết nối lại" : "Khởi động nick này"}
                           >
                             <Play size={14} />
-                            <span>Bật</span>
+                            <span>{acc.status === 'error' ? 'Bật lại' : 'Bật'}</span>
                           </button>
                         )}
                         <button

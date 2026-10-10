@@ -18,6 +18,32 @@ class UpdateCampaignSettings(BaseModel):
 
 @router.post("/start")
 async def start_campaign(body: UserCampaignAction):
+    sb = get_supabase()
+    if sb:
+        # 1. Kiểm tra tài khoản Telegram đang online
+        accs = sb.table("telegram_accounts").select("id").eq("user_id", body.user_id).eq("status", "online").execute()
+        if not accs.data:
+            raise HTTPException(
+                status_code=400,
+                detail="Không thể khởi động chiến dịch: Bạn chưa có tài khoản Telegram nào đang Online! Vui lòng vào trang 'Tài Khoản' để Bật nick trước."
+            )
+
+        # 2. Kiểm tra có ít nhất 1 mẫu tin đang bật
+        tmpls = sb.table("message_templates").select("id").eq("user_id", body.user_id).eq("is_active", True).execute()
+        if not tmpls.data:
+            raise HTTPException(
+                status_code=400,
+                detail="Không thể khởi động chiến dịch: Bạn chưa có mẫu tin nhắn nào đang bật. Vui lòng vào trang 'Chiến Dịch' để tạo hoặc bật mẫu tin!"
+            )
+
+        # 3. Kiểm tra có ít nhất 1 nhóm mục tiêu đang bật
+        grps = sb.table("target_groups").select("id").eq("user_id", body.user_id).eq("is_active", True).execute()
+        if not grps.data:
+            raise HTTPException(
+                status_code=400,
+                detail="Không thể khởi động chiến dịch: Chưa có nhóm Telegram mục tiêu nào đang bật. Vui lòng quét hoặc thêm nhóm!"
+            )
+
     result = await bot_engine.start_campaign_for_user(body.user_id)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Lỗi khởi động chiến dịch"))

@@ -144,9 +144,9 @@ export default function DashboardPage({ setActiveTab, onOpenAddAccount }) {
     return () => clearInterval(timer);
   }, [isRunning, user, loadLogs]);
 
-  // Step 1: Có từ 1 tài khoản không bị dừng (status !== 'offline')
+  // Step 1: Phải có từ 1 tài khoản ĐANG ONLINE (status === 'online')
   const activeAccounts = useMemo(() => {
-    return accounts.filter(a => a.status !== 'offline');
+    return accounts.filter(a => a.status === 'online');
   }, [accounts]);
   const hasActiveAccount = activeAccounts.length > 0;
 

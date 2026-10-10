@@ -258,9 +258,17 @@ async def start_account_bot(body: AccountActionBody):
     res = sb.table("telegram_accounts").select("*").eq("id", body.account_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản")
-    client = await bot_engine.get_or_start_client(res.data[0])
+    acc = res.data[0]
+    client = await bot_engine.get_or_start_client(acc)
     if not client:
-        raise HTTPException(status_code=500, detail="Không thể khởi động tài khoản Telegram này")
+        err_msg = bot_engine.last_errors.get(body.account_id, "")
+        if "AUTH_KEY_DUPLICATED" in err_msg:
+            detail = f"Phiên đăng nhập Telegram ({acc.get('phone_number')}) đã bị thu hồi do AUTH_KEY_DUPLICATED (bị đăng nhập song song ở máy khác hoặc server khác). Vui lòng bấm 'Xóa' nick này và bấm 'Thêm Tài Khoản Mới' để kết nối lại!"
+        elif "AUTH_KEY_UNREGISTERED" in err_msg or "SESSION_REVOKED" in err_msg:
+            detail = f"Phiên Telegram ({acc.get('phone_number')}) đã bị hủy đăng nhập từ ứng dụng Telegram. Vui lòng bấm 'Xóa' và thêm lại nick!"
+        else:
+            detail = f"Không thể khởi động nick {acc.get('phone_number')}: {err_msg or 'Lỗi kết nối tới Telegram'}"
+        raise HTTPException(status_code=400, detail=detail)
     return {"success": True, "message": "Bot tài khoản đã hoạt động!"}
 
 @router.post("/stop-bot")

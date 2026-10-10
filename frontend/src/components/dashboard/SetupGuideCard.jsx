@@ -27,11 +27,11 @@ export default function SetupGuideCard({
     {
       id: 1,
       title: 'Bước 1: Thêm tài khoản tele',
-      desc: 'Bấm để sang trang /accounts • Cần từ 1 tài khoản không bị dừng',
+      desc: 'Bấm để sang trang /accounts • Cần từ 1 tài khoản đang Online',
       tab: 'accounts',
       icon: Users,
       isSuccess: hasActiveAccount,
-      statText: hasActiveAccount ? `${activeAccountCount} tài khoản online` : 'Chưa có tài khoản online'
+      statText: hasActiveAccount ? `${activeAccountCount} tài khoản online` : '0 tài khoản online (Cần bật nick)'
     },
     {
       id: 2,
