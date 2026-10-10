@@ -23,7 +23,10 @@ import {
   FileText,
   RefreshCw, 
   Zap, 
-  Users
+  Users,
+  Info,
+  ShieldCheck,
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -61,6 +64,7 @@ export default function CampaignPage() {
   const [forwardTelegram, setForwardTelegram] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [showDelayInfoModal, setShowDelayInfoModal] = useState(false);
 
   // Message Templates List
   const [templates, setTemplates] = useState([]);
@@ -515,186 +519,43 @@ export default function CampaignPage() {
         </p>
       </div>
 
-      {/* ============================================================ */}
-      {/* 🚀 BẢNG ĐIỀU KHIỂN CHIẾN DỊCH PHÁT TIN TRUNG TÂM (UC-14) */}
-      {/* ============================================================ */}
-      <div className="card" style={{
-        marginBottom: '20px',
-        padding: '24px',
-        background: isRunning 
-          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.06) 100%)' 
-          : 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(15, 23, 42, 0.5) 100%)',
-        border: isRunning ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid var(--border-subtle)',
-        boxShadow: isRunning ? '0 10px 30px rgba(16, 185, 129, 0.1)' : 'none',
-        transition: 'all 0.3s ease'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap' }}>
-          
-          {/* Header & Status Indicator */}
-          <div style={{ flex: 1, minWidth: '280px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: isRunning ? 'rgba(16, 185, 129, 0.2)' : 'rgba(99, 102, 241, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: isRunning ? '#34d399' : 'var(--primary-light)'
-              }}>
-                <Radio size={18} className={isRunning ? 'spin' : ''} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span>Trung Tâm Điều Khiển Rải Tin Đa Nick</span>
-                  {/* Status Badge */}
-                  {isRunning ? (
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      padding: '3px 10px',
-                      borderRadius: '999px',
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      color: '#34d399',
-                      border: '1px solid rgba(16, 185, 129, 0.4)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <span style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        background: '#10b981',
-                        boxShadow: '0 0 8px #10b981'
-                      }} />
-                      ĐANG PHÁT TIN TUẦN HOÀN
-                    </span>
-                  ) : (
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      padding: '3px 10px',
-                      borderRadius: '999px',
-                      background: 'rgba(148, 163, 184, 0.1)',
-                      color: 'var(--text-muted)',
-                      border: '1px solid var(--border-subtle)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <span style={{
-                        width: '7px',
-                        height: '7px',
-                        borderRadius: '50%',
-                        background: 'var(--text-dim)'
-                      }} />
-                      ĐANG TẠM DỪNG
-                    </span>
-                  )}
-                </h3>
-                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '3px 0 0 0' }}>
-                  Hệ thống tự động điều phối các tài khoản Telegram rải tin Spintax tới toàn bộ nhóm mục tiêu đã tham gia.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Trigger Button */}
-          <div>
-            <button
-              type="button"
-              onClick={handleToggleCampaign}
-              disabled={isTogglingCampaign}
-              className={`btn ${isRunning ? 'btn-danger' : 'btn-primary'} btn-campaign-toggle`}
-              style={{
-                height: '42px',
-                padding: '0 20px',
-                fontSize: '14px',
-                fontWeight: '600',
-                gap: '8px',
-                cursor: isTogglingCampaign ? 'not-allowed' : 'pointer',
-                boxShadow: isRunning ? '0 4px 16px rgba(239, 68, 68, 0.35)' : '0 4px 16px var(--primary-glow)'
-              }}
-            >
-              {isTogglingCampaign ? (
-                <>
-                  <Loader2 size={16} className="spin" />
-                  <span>Đang cập nhật...</span>
-                </>
-              ) : isRunning ? (
-                <>
-                  <Square size={14} fill="currentColor" />
-                  <span>Tạm dừng spam</span>
-                </>
-              ) : (
-                <>
-                  <Play size={15} fill="currentColor" />
-                  <span>Bắt đầu spam</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* 4 Mini KPIs Vận Hành */}
-        <div style={{
-          marginTop: '20px',
-          paddingTop: '18px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-          gap: '14px'
-        }}>
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600' }}>TÀI KHOẢN TELEGRAM</div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Users size={15} color="var(--primary-light)" />
-              <span>{accounts.length} nick ({accounts.filter(a => a.status === 'online').length} online)</span>
-            </div>
-          </div>
-
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600' }}>NHÓM PHỦ SÓNG SẴN SÀNG</div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Zap size={15} color="#38bdf8" />
-              <span>{groupMetrics.readyToBroadcast} / {groupMetrics.total} nhóm</span>
-            </div>
-            {groupMetrics.pausedWithOfflineAcc > 0 && (
-              <div style={{ fontSize: '10.5px', color: '#f59e0b', marginTop: '3px', fontWeight: '500' }}>
-                ({groupMetrics.pausedWithOfflineAcc} nhóm tạm nghỉ theo nick offline)
-              </div>
-            )}
-          </div>
-
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600' }}>MẪU TIN SPINTAX</div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <MessageSquare size={15} color="#c084fc" />
-              <span>{activeCount} mẫu xoay vòng</span>
-            </div>
-          </div>
-
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: '600' }}>TỐC ĐỘ PHÁT TIN</div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sliders size={15} color="#fbbf24" />
-              <span>{groupDelay}s / nhóm (Chu kỳ: {Math.round(cycleDelay / 60)}p)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 1. CÀI ĐẶT THỜI GIAN DELAY & CHUYỂN TIẾP TIN NHẮN (GIỮ NGUYÊN) */}
+      {/* 1. CÀI ĐẶT THỜI GIAN DELAY & CHUYỂN TIẾP TIN NHẮN */}
       <div className="card" style={{ marginBottom: '20px' }}>
         <div className="card-header-flex" style={{ marginBottom: '20px' }}>
           <div>
-            <h3 className="card-title">
-              <Sliders size={18} color="var(--primary-light)" />
-              <span>Thời Gian Delay & Chuyển Tiếp Tin Nhắn</span>
-            </h3>
-            <p className="card-desc">Điều chỉnh tốc độ gửi tin để bảo vệ nick Telegram không bị FloodWait hoặc ban</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={18} color="var(--primary-light)" />
+                <span>Thời Gian Delay & Chuyển Tiếp Tin Nhắn</span>
+              </h3>
+              {/* Icon Info to chút - Bấm xem đề xuất thời gian an toàn */}
+              <button
+                type="button"
+                onClick={() => setShowDelayInfoModal(true)}
+                className="btn-icon-subtle"
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  border: '1px solid rgba(99, 102, 241, 0.35)',
+                  color: 'var(--primary-light)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)'
+                }}
+                title="Bấm để xem đề xuất thời gian hợp lý, mức cảnh báo & độ an toàn"
+              >
+                <Info size={17} />
+              </button>
+            </div>
+            <p className="card-desc" style={{ marginTop: '4px' }}>
+              Điều chỉnh tốc độ gửi tin để bảo vệ nick Telegram không bị FloodWait hoặc ban
+            </p>
           </div>
           <button 
             onClick={handleSaveSettings} 
@@ -714,6 +575,7 @@ export default function CampaignPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+          {/* CỘT 1: Giãn cách giữa 2 nhóm (Group Delay) */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
               <label className="form-label" style={{ margin: 0 }}>
@@ -723,11 +585,11 @@ export default function CampaignPage() {
                 fontFamily: 'Consolas, Monaco, monospace',
                 fontSize: '12.5px',
                 fontWeight: '700',
-                color: groupDelay < 60 ? '#ef4444' : groupDelay < 120 ? '#f59e0b' : 'var(--primary-light)',
-                background: groupDelay < 60 ? 'rgba(239, 68, 68, 0.15)' : groupDelay < 120 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                color: groupDelay < 60 ? '#ef4444' : groupDelay < 120 ? '#f59e0b' : '#34d399',
+                background: groupDelay < 60 ? 'rgba(239, 68, 68, 0.15)' : groupDelay < 120 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
                 padding: '2px 8px',
                 borderRadius: '4px',
-                border: `1px solid ${groupDelay < 60 ? 'rgba(239, 68, 68, 0.3)' : groupDelay < 120 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(99, 102, 241, 0.3)'}`
+                border: `1px solid ${groupDelay < 60 ? 'rgba(239, 68, 68, 0.3)' : groupDelay < 120 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
               }}>
                 {groupDelay}s ({Math.round(groupDelay / 60 * 10) / 10}p)
               </span>
@@ -742,11 +604,11 @@ export default function CampaignPage() {
               onChange={(e) => setGroupDelay(parseInt(e.target.value, 10))}
               style={{
                 width: '100%',
-                accentColor: groupDelay < 60 ? '#ef4444' : groupDelay < 120 ? '#f59e0b' : 'var(--primary)'
+                accentColor: groupDelay < 60 ? '#ef4444' : groupDelay < 120 ? '#f59e0b' : '#10b981'
               }}
             />
 
-            {/* Cảnh báo khi người dùng kéo về phía bên trái (< 120s) */}
+            {/* Trạng thái cảnh báo của Group Delay */}
             {groupDelay < 60 ? (
               <div style={{
                 marginTop: '8px',
@@ -762,7 +624,7 @@ export default function CampaignPage() {
               }}>
                 <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  <strong style={{ color: '#ef4444' }}>! Cảnh báo nguy hiểm cao:</strong> Giãn cách dưới 60 giây có nguy cơ rất cao bị Telegram áp lệnh <strong>FloodWait</strong> hoặc chặn quyền gửi tin (Spam block) của tài khoản!
+                  <strong style={{ color: '#ef4444' }}>🔴 Nguy hiểm (Rủi ro cao):</strong> Dưới 60 giây rất dễ bị Telegram áp lệnh <strong>FloodWait</strong> hoặc chặn quyền gửi tin của tài khoản!
                 </div>
               </div>
             ) : groupDelay < 120 ? (
@@ -780,32 +642,119 @@ export default function CampaignPage() {
               }}>
                 <AlertCircle size={15} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  <strong style={{ color: '#f59e0b' }}>! Cảnh báo tốc độ nhanh:</strong> Dưới 120 giây có thể làm tăng nguy cơ bị Telegram kiểm duyệt nếu tài khoản chưa có độ uy tín (trust) cao.
+                  <strong style={{ color: '#f59e0b' }}>🟡 Cảnh báo (Tốc độ nhanh):</strong> 60s – 119s chỉ nên dùng cho tài khoản lâu năm có độ Trust cao.
                 </div>
               </div>
             ) : (
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-                ✓ Mức an toàn khuyến nghị: 120 giây (2 phút) để tài khoản hoạt động bền vững.
-              </span>
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                fontSize: '12px',
+                color: '#86efac'
+              }}>
+                <CheckCircle2 size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong style={{ color: '#34d399' }}>🟢 An toàn (Khuyên dùng):</strong> Từ 120s (2 phút) trở lên giúp nick gửi tin tự nhiên như người thật, chống bị khóa nick.
+                </div>
+              </div>
             )}
           </div>
 
+          {/* CỘT 2: Giãn cách giữa 2 chu kỳ (Cycle Delay) */}
           <div>
-            <label className="form-label">
-              Giãn cách giữa 2 chu kỳ (Cycle Delay): <strong style={{ color: 'var(--primary-light)' }}>{cycleDelay} giây</strong> ({Math.round(cycleDelay / 60)} phút)
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label className="form-label" style={{ margin: 0 }}>
+                Giãn cách giữa 2 chu kỳ (Cycle Delay):
+              </label>
+              <span style={{
+                fontFamily: 'Consolas, Monaco, monospace',
+                fontSize: '12.5px',
+                fontWeight: '700',
+                color: cycleDelay < 300 ? '#ef4444' : cycleDelay < 1200 ? '#f59e0b' : '#34d399',
+                background: cycleDelay < 300 ? 'rgba(239, 68, 68, 0.15)' : cycleDelay < 1200 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                border: `1px solid ${cycleDelay < 300 ? 'rgba(239, 68, 68, 0.3)' : cycleDelay < 1200 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+              }}>
+                {cycleDelay}s ({Math.round(cycleDelay / 60 * 10) / 10}p)
+              </span>
+            </div>
+
             <input
               type="range"
               min="60"
               max="3600"
               step="60"
               value={cycleDelay}
-              onChange={(e) => setCycleDelay(e.target.value)}
-              style={{ width: '100%', accentColor: 'var(--primary)' }}
+              onChange={(e) => setCycleDelay(parseInt(e.target.value, 10))}
+              style={{
+                width: '100%',
+                accentColor: cycleDelay < 300 ? '#ef4444' : cycleDelay < 1200 ? '#f59e0b' : '#10b981'
+              }}
             />
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Khuyến nghị: 1200 giây (20 phút) sau khi rải hết một lượt
-            </span>
+
+            {/* Trạng thái cảnh báo của Cycle Delay */}
+            {cycleDelay < 300 ? (
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                fontSize: '12px',
+                color: '#fca5a5'
+              }}>
+                <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong style={{ color: '#ef4444' }}>🔴 Nguy hiểm (Gửi dồn dập):</strong> Dưới 5 phút khiến nhóm nhận tin quá dồn dập, rất dễ bị Admin nhóm và Telegram chặn vĩnh viễn!
+                </div>
+              </div>
+            ) : cycleDelay < 1200 ? (
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                fontSize: '12px',
+                color: '#fde68a'
+              }}>
+                <AlertCircle size={15} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong style={{ color: '#f59e0b' }}>🟡 Cảnh báo (Tần suất dày):</strong> 5 – 19 phút có thể khiến thành viên khó chịu và bấm Report Spam nếu số lượng nhóm ít.
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                fontSize: '12px',
+                color: '#86efac'
+              }}>
+                <CheckCircle2 size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong style={{ color: '#34d399' }}>🟢 An toàn (Khuyên dùng):</strong> Từ 1200s (20 phút) trở lên là khoảng nghỉ lý tưởng sau khi đã rải hết một lượt nhóm.
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1620,6 +1569,147 @@ export default function CampaignPage() {
         confirmText="Xác nhận xóa"
         isLoading={isDeletingTemplate}
       />
+
+      {/* MODAL HƯỚNG DẪN & ĐỀ XUẤT THỜI GIAN DELAY AN TOÀN */}
+      {showDelayInfoModal && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setShowDelayInfoModal(false)}
+          style={{ zIndex: 9999 }}
+        >
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '520px', width: '92%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+          >
+            {/* Header */}
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                }}>
+                  <Info size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--text-main)' }}>
+                    Đề Xuất Thời Gian & Mức Độ An Toàn
+                  </h3>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Quy chuẩn tốc độ rải tin chống Telegram chặn nick
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowDelayInfoModal(false)} 
+                className="btn-icon-subtle" 
+                style={{ fontSize: '18px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              
+              {/* Mục 1: Giãn cách 2 nhóm */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '10px',
+                padding: '12px 14px'
+              }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sliders size={15} color="var(--primary-light)" />
+                  <span>1. Giãn cách giữa 2 nhóm (Group Delay):</span>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                    <span style={{ color: '#34d399', fontWeight: '700', flexShrink: 0 }}>🟢 An Toàn (Khuyên dùng):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}><strong>Từ 120s (2 phút) trở lên</strong>. Tốc độ tự nhiên như người dùng thật, nick hoạt động bền bỉ nhất.</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                    <span style={{ color: '#fbbf24', fontWeight: '700', flexShrink: 0 }}>🟡 Cảnh Báo (Tốc độ nhanh):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}><strong>60s – 119s</strong>. Chỉ nên dùng cho nick đã hoạt động lâu năm (độ Trust cao). Nick mới dễ bị hạn chế.</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                    <span style={{ color: '#f87171', fontWeight: '700', flexShrink: 0 }}>🔴 Nguy Hiểm (Rủi ro cao):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}><strong>Dưới 60s (&lt; 1 phút)</strong>. Rất dễ bị lệnh FloodWait hoặc bị Telegram cấm gửi tin vào nhóm.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mục 2: Giãn cách 2 chu kỳ */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '10px',
+                padding: '12px 14px'
+              }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <RefreshCw size={15} color="#38bdf8" />
+                  <span>2. Giãn cách giữa 2 chu kỳ (Cycle Delay):</span>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                    <span style={{ color: '#34d399', fontWeight: '700', flexShrink: 0 }}>🟢 An Toàn (Khuyên dùng):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}><strong>Từ 1200s (20 phút) trở lên</strong>. Cho tài khoản nghỉ ngơi hợp lý sau khi rải hết 1 lượt nhóm trước khi lặp lại.</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                    <span style={{ color: '#fbbf24', fontWeight: '700', flexShrink: 0 }}>🟡 Cảnh Báo (Tần suất dày):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}><strong>300s – 1199s (5 – 19 phút)</strong>. Nếu kho nhóm ít, nhóm sẽ nhận tin liên tục, dễ bị thành viên nhấn Report Spam.</span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                    <span style={{ color: '#f87171', fontWeight: '700', flexShrink: 0 }}>🔴 Nguy Hiểm (Gửi dồn dập):</span>
+                    <span style={{ color: 'var(--text-secondary)' }}><strong>Dưới 300s (&lt; 5 phút)</strong>. Lặp lại quá dồn dập, bot quản trị nhóm và Telegram sẽ khóa nick ngay lập tức.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lời khuyên vàng */}
+              <div style={{
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'center',
+                fontSize: '12px',
+                color: 'var(--text-secondary)'
+              }}>
+                <ShieldCheck size={16} color="var(--primary-light)" style={{ flexShrink: 0 }} />
+                <span>💡 <strong>Cấu hình chuẩn nhất:</strong> Nhóm đặt <strong>120s</strong> và Chu kỳ đặt <strong>1200s (20 phút)</strong> để tài khoản chạy 24/7 an toàn tuyệt đối.</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-subtle)', padding: '12px 18px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowDelayInfoModal(false)}
+                className="btn btn-primary"
+                style={{ padding: '7px 18px', fontSize: '13px' }}
+              >
+                Đã Hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
