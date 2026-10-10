@@ -90,6 +90,11 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
 
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
+    if (!loginId) {
+      setError('Phiên yêu cầu mã OTP chưa được tạo hoặc đã hết hạn. Vui lòng quay lại bước 1 để gửi mã OTP!');
+      setStep(1);
+      return;
+    }
     if (!code) {
       setError('Vui lòng nhập mã OTP từ Telegram');
       return;

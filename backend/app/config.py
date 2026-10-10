@@ -16,5 +16,6 @@ class Settings(BaseModel):
     PAYOS_CHECKSUM_KEY: str = os.getenv("PAYOS_CHECKSUM_KEY", "")
     ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin@telepulse.io")
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123")
+    ENABLE_BOT_WORKER: bool = os.getenv("ENABLE_BOT_WORKER", "true").lower() in ("true", "1", "yes")
 
 settings = Settings()

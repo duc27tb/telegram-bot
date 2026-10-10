@@ -1,4 +1,28 @@
-export const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000').trim().replace(/\/+$/, '');
+const getBackendUrl = () => {
+  const envUrl = (import.meta.env.VITE_BACKEND_URL || '').trim();
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '0.0.0.0'
+  );
+
+  // Nếu đang chạy trên web deploy (Vercel, custom domain, v.v.):
+  // Nếu chưa cấu hình VITE_BACKEND_URL hoặc trỏ nhầm về localhost, tự động trỏ về Render backend
+  if (!isLocalhost) {
+    if (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1')) {
+      return 'https://telepulse-backend-fcov.onrender.com';
+    }
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // Nếu đang chạy ở máy local:
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
+  }
+  return 'http://localhost:8000';
+};
+
+export const BACKEND_URL = getBackendUrl();
 
 export async function requestOTP(phoneNumber, apiId = null, apiHash = null, userId = null) {
   try {

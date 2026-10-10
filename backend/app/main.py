@@ -15,26 +15,29 @@ from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Khởi động nền toàn bộ tài khoản bot Telegram để sẵn sàng lắng nghe tin nhắn đến
-    asyncio.create_task(bot_engine.start_all_clients())
+    if settings.ENABLE_BOT_WORKER:
+        # Khởi động nền toàn bộ tài khoản bot Telegram để sẵn sàng lắng nghe tin nhắn đến
+        asyncio.create_task(bot_engine.start_all_clients())
 
-    # Khôi phục các chiến dịch đang chạy nếu server restart
-    async def _resume_campaigns():
-        await asyncio.sleep(4)
-        from app.database import get_supabase
-        sb = get_supabase()
-        if sb:
-            try:
-                running_camps = sb.table("campaign_settings").select("user_id").eq("is_running", True).execute()
-                for c in (running_camps.data or []):
-                    u_id = c.get("user_id")
-                    if u_id:
-                        print(f"🔄 [Lifespan] Khôi phục tiến trình campaign cho User: {u_id}")
-                        await bot_engine.start_campaign_for_user(u_id)
-            except Exception as e:
-                print(f"⚠️ [Lifespan] Lỗi resume campaigns: {e}")
+        # Khôi phục các chiến dịch đang chạy nếu server restart
+        async def _resume_campaigns():
+            await asyncio.sleep(4)
+            from app.database import get_supabase
+            sb = get_supabase()
+            if sb:
+                try:
+                    running_camps = sb.table("campaign_settings").select("user_id").eq("is_running", True).execute()
+                    for c in (running_camps.data or []):
+                        u_id = c.get("user_id")
+                        if u_id:
+                            print(f"🔄 [Lifespan] Khôi phục tiến trình campaign cho User: {u_id}")
+                            await bot_engine.start_campaign_for_user(u_id)
+                except Exception as e:
+                    print(f"⚠️ [Lifespan] Lỗi resume campaigns: {e}")
 
-    asyncio.create_task(_resume_campaigns())
+        asyncio.create_task(_resume_campaigns())
+    else:
+        print("⏸️ [Lifespan] ENABLE_BOT_WORKER=false: Chạy ở chế độ Passive API (không kết nối Pyrogram client để tránh xung đột session với Deploy Render).")
     yield
     # Khi ứng dụng dừng: ngắt kết nối các client sạch sẽ
     for acc_id in list(bot_engine.active_clients.keys()):
