@@ -127,36 +127,6 @@ class OTPService:
             me = await client.get_me()
             session_string = await client.export_session_string()
 
-            # Quét danh sách nhóm của tài khoản này (Single-Pass: lấy luôn link/username sẵn có)
-            groups = []
-            try:
-                async for dialog in client.get_dialogs():
-                    if dialog.chat.type.value in ["supergroup", "group"]:
-                        chat_link = None
-                        chat_un = None
-                        if dialog.chat.username:
-                            chat_link = f"https://t.me/{dialog.chat.username}"
-                            chat_un = dialog.chat.username
-                        elif getattr(dialog.chat, "invite_link", None):
-                            chat_link = dialog.chat.invite_link
-                        elif getattr(dialog.chat, "usernames", None):
-                            for u in dialog.chat.usernames:
-                                if getattr(u, "username", None) and getattr(u, "is_active", True):
-                                    chat_link = f"https://t.me/{u.username}"
-                                    chat_un = u.username
-                                    break
-
-                        chat_mc = getattr(dialog.chat, "members_count", 0) or 0
-                        groups.append({
-                            "chat_id": dialog.chat.id,
-                            "title": dialog.chat.title or "Nhóm Telegram",
-                            "link": chat_link or "",
-                            "username": chat_un or "",
-                            "members_count": chat_mc
-                        })
-            except Exception as e:
-                print(f"[OTP Service] Loi quet nhom tu dong: {e}")
-
             await client.disconnect()
             del pending_logins[login_id]
 
@@ -168,7 +138,7 @@ class OTPService:
                 "account_name": full_name,
                 "api_id": str(data["api_id"]),
                 "api_hash": data["api_hash"],
-                "groups": groups
+                "groups": []
             }
 
         except PhoneCodeInvalid:

@@ -33,13 +33,18 @@ export async function requestOTP(phoneNumber, apiId = null, apiHash = null, user
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone_number: phoneNumber, api_id: apiId, api_hash: apiHash, user_id: userId })
     });
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { error: `Máy chủ phản hồi mã ${res.status} (${res.statusText || 'Lỗi kết nối'})` };
+    }
     if (!res.ok) {
       return { success: false, error: data.detail || data.error || 'Lỗi gửi mã OTP' };
     }
     return data;
   } catch (err) {
-    return { success: false, error: `Không thể kết nối máy chủ (${BACKEND_URL}).` };
+    return { success: false, error: `Không thể kết nối máy chủ (${BACKEND_URL}). Vui lòng kiểm tra kết nối mạng hoặc thử lại!` };
   }
 }
 
@@ -50,7 +55,12 @@ export async function verifyOTP(loginId, code, password, userId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ login_id: loginId, code, password, user_id: userId })
     });
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { error: `Máy chủ phản hồi mã ${res.status} (${res.statusText || 'Lỗi kết nối'})` };
+    }
     if (!res.ok) {
       return { 
         success: false, 
@@ -60,7 +70,7 @@ export async function verifyOTP(loginId, code, password, userId) {
     }
     return data;
   } catch (err) {
-    return { success: false, error: `Không thể kết nối máy chủ (${BACKEND_URL}).` };
+    return { success: false, error: `Không thể kết nối máy chủ (${BACKEND_URL}). Vui lòng kiểm tra kết nối mạng hoặc thử lại!` };
   }
 }
 

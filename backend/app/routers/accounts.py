@@ -118,6 +118,86 @@ async def background_scan_account_links(account_id: str, user_id: str):
     except Exception as e:
         print(f"[Background Scan Links] Error: {e}")
 
+async def background_sync_account_after_login(account_data: dict, user_id: str):
+    """Khởi động bot và quét tự động danh sách nhóm trong nền, không làm chậm phản hồi OTP"""
+    try:
+        acc_id = account_data.get("id")
+        client = await bot_engine.get_or_start_client(account_data)
+        if not client or not acc_id:
+            return
+
+        sb = get_supabase()
+        if not sb:
+            return
+
+        existing_cids = set()
+        try:
+            exist_res = sb.table("target_groups").select("chat_id").eq("user_id", user_id).eq("account_id", acc_id).execute()
+            if exist_res.data:
+                existing_cids = {g["chat_id"] for g in exist_res.data}
+        except Exception:
+            pass
+
+        group_records = []
+        links_map = {}
+        missing_cids = []
+
+        try:
+            async for d in client.get_dialogs():
+                if d.chat.type.value in ["supergroup", "group"]:
+                    cid = d.chat.id
+                    if cid not in existing_cids:
+                        group_records.append({
+                            "user_id": user_id,
+                            "account_id": acc_id,
+                            "chat_id": cid,
+                            "group_title": d.chat.title or "Nhóm Telegram",
+                            "is_active": True
+                        })
+                        existing_cids.add(cid)
+
+                    c_link = None
+                    c_un = None
+                    if d.chat.username:
+                        c_link = f"https://t.me/{d.chat.username}"
+                        c_un = d.chat.username
+                    elif getattr(d.chat, "invite_link", None):
+                        c_link = d.chat.invite_link
+                    elif getattr(d.chat, "usernames", None):
+                        for u in d.chat.usernames:
+                            if getattr(u, "username", None) and getattr(u, "is_active", True):
+                                c_link = f"https://t.me/{u.username}"
+                                c_un = u.username
+                                break
+
+                    c_mc = getattr(d.chat, "members_count", 0) or 0
+                    if c_link or c_mc:
+                        links_map[cid] = {
+                            "link": c_link or "",
+                            "username": c_un or "",
+                            "members_count": c_mc
+                        }
+                    if not c_link:
+                        missing_cids.append(cid)
+        except Exception as e:
+            print(f"[Background Sync Groups] Error get_dialogs: {e}")
+
+        if group_records:
+            try:
+                sb.table("target_groups").insert(group_records).execute()
+                print(f"[Background Sync Groups] Đã thêm {len(group_records)} nhóm cho nick {account_data.get('phone_number')}")
+            except Exception as e:
+                print(f"[Background Sync Groups] Lỗi insert target_groups: {e}")
+
+        if links_map:
+            GroupLinkCache.batch_set_links(links_map)
+
+        if missing_cids:
+            asyncio.create_task(background_export_private_links(acc_id, user_id, missing_cids[:20]))
+
+    except Exception as e:
+        print(f"[Background Sync After Login] Error: {e}")
+
 class RequestOTPBody(BaseModel):
     phone_number: str
     api_id: Optional[str] = None
@@ -241,54 +321,16 @@ async def verify_otp(body: VerifyOTPBody):
         acc_insert = sb.table("telegram_accounts").upsert(acc_data, on_conflict="user_id,phone_number").execute()
         acc_id = acc_insert.data[0]["id"] if acc_insert.data else None
 
-        # Lưu danh sách nhóm tự động tìm thấy & Cache link tức thì (Single-Pass)
-        groups = result.get("groups", [])
-        missing_cids = []
-        if groups and acc_id:
-            existing_cids = set()
-            try:
-                exist_res = sb.table("target_groups").select("chat_id").eq("user_id", body.user_id).eq("account_id", acc_id).execute()
-                if exist_res.data:
-                    existing_cids = {g["chat_id"] for g in exist_res.data}
-            except Exception:
-                pass
+        created_acc = acc_insert.data[0] if acc_insert.data else None
 
-            group_records = []
-            links_map = {}
-            for g in groups:
-                if g["chat_id"] not in existing_cids:
-                    group_records.append({
-                        "user_id": body.user_id,
-                        "account_id": acc_id,
-                        "chat_id": g["chat_id"],
-                        "group_title": g["title"],
-                        "is_active": True
-                    })
-                if g.get("link") or g.get("members_count"):
-                    links_map[g["chat_id"]] = {
-                        "link": g.get("link", ""),
-                        "username": g.get("username", ""),
-                        "members_count": g.get("members_count", 0)
-                    }
-                if not g.get("link"):
-                    missing_cids.append(g["chat_id"])
-
-            if group_records:
-                sb.table("target_groups").insert(group_records).execute()
-            if links_map:
-                GroupLinkCache.batch_set_links(links_map)
-
-        # Khởi động client trong PyrogramEngine
-        if acc_insert.data:
-            await bot_engine.get_or_start_client(acc_insert.data[0])
-            if acc_id and missing_cids:
-                asyncio.create_task(background_export_private_links(acc_id, body.user_id, missing_cids[:20]))
+        # Khởi động client và quét nhóm tự động trong nền (không làm nghẽn kết nối HTTP)
+        if created_acc:
+            asyncio.create_task(background_sync_account_after_login(created_acc, body.user_id))
 
         return {
             "success": True,
             "message": f"Kết nối thành công tài khoản: {result['account_name']}!",
-            "account": acc_insert.data[0] if acc_insert.data else None,
-            "total_groups_scanned": len(groups)
+            "account": created_acc
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi lưu CSDL: {str(e)}")
