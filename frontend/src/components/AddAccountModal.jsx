@@ -34,6 +34,8 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [accountCount, setAccountCount] = useState(0);
+  const [savedApiConfig, setSavedApiConfig] = useState(null);
+  const [showCustomApi, setShowCustomApi] = useState(false);
 
   const isVip = profile?.subscription_tier === 'VIP';
   const maxAccounts = isVip ? 10 : 3;
@@ -45,18 +47,49 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
         setPhone(initialAccount.phone_number || '');
         setApiId(initialAccount.api_id ? String(initialAccount.api_id) : '');
         setApiHash(initialAccount.api_hash ? String(initialAccount.api_hash) : '');
+        setShowCustomApi(false);
       } else {
         setPhone('');
-        setApiId('');
-        setApiHash('');
+        setShowCustomApi(false);
       }
       if (user) {
         supabase
           .from('telegram_accounts')
-          .select('id', { count: 'exact', head: true })
+          .select('id, api_id, api_hash, created_at')
           .eq('user_id', user.id)
-          .then(({ count }) => {
-            if (count !== null) setAccountCount(count);
+          .order('created_at', { ascending: false })
+          .then(({ data }) => {
+            if (data && data.length > 0) {
+              setAccountCount(data.length);
+              const found = data.find(a => a.api_id && a.api_hash);
+              if (found) {
+                const saved = {
+                  api_id: String(found.api_id),
+                  api_hash: String(found.api_hash)
+                };
+                setSavedApiConfig(saved);
+                if (!initialAccount) {
+                  setApiId(saved.api_id);
+                  setApiHash(saved.api_hash);
+                  setShowCustomApi(false);
+                }
+              } else {
+                setSavedApiConfig(null);
+                if (!initialAccount) {
+                  setApiId('');
+                  setApiHash('');
+                  setShowCustomApi(true);
+                }
+              }
+            } else {
+              setAccountCount(0);
+              setSavedApiConfig(null);
+              if (!initialAccount) {
+                setApiId('');
+                setApiHash('');
+                setShowCustomApi(true);
+              }
+            }
           });
       }
     }
@@ -70,7 +103,17 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
       setError('Vui lòng nhập số điện thoại');
       return;
     }
-    if (!initialAccount && (!apiId.trim() || !apiHash.trim())) {
+
+    let finalApiId = apiId.trim();
+    let finalApiHash = apiHash.trim();
+
+    // Nếu không bật tùy chỉnh API và đã có cấu hình lưu sẵn: Dùng cấu hình lưu sẵn
+    if (!showCustomApi && savedApiConfig) {
+      finalApiId = savedApiConfig.api_id;
+      finalApiHash = savedApiConfig.api_hash;
+    }
+
+    if (!initialAccount && (!finalApiId || !finalApiHash)) {
       setError('Bắt buộc phải nhập đầy đủ API ID và API Hash riêng của bạn! Vui lòng xem hướng dẫn bên dưới.');
       return;
     }
@@ -82,7 +125,7 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
     setError('');
     setLoading(true);
     try {
-      const res = await requestOTP(cleanPhone, apiId || null, apiHash || null, user?.id);
+      const res = await requestOTP(cleanPhone, finalApiId || null, finalApiHash || null, user?.id);
       if (res.success) {
         setLoginId(res.login_id);
         setPhone(cleanPhone); // Hiển thị số đã chuẩn hóa +84 cho bước tiếp theo
@@ -258,8 +301,48 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
               </span>
             </div>
 
-            {/* Cảnh báo đỏ nếu người dùng chưa nhập API ID hoặc API Hash */}
-            {!initialAccount && (!apiId.trim() || !apiHash.trim()) && (
+            {/* Nếu đã lưu API trước đó: Hiển thị thanh thông báo và Checkbox Cấu hình API */}
+            {savedApiConfig && !initialAccount && (
+              <div style={{
+                marginBottom: '16px',
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                  <ShieldCheck size={16} color="var(--success)" style={{ flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    API Telegram: <strong style={{ color: '#38bdf8' }}>Đã lưu sẵn</strong> (ID: {savedApiConfig.api_id.slice(0, 4)}***)
+                  </span>
+                </div>
+                <label style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: 'var(--primary-light)',
+                  fontWeight: '600',
+                  userSelect: 'none'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={showCustomApi}
+                    onChange={(e) => setShowCustomApi(e.target.checked)}
+                    style={{ cursor: 'pointer', accentColor: 'var(--primary)', width: '15px', height: '15px' }}
+                  />
+                  <span>Cấu hình API</span>
+                </label>
+              </div>
+            )}
+
+            {/* Cảnh báo đỏ nếu chưa có API nào được lưu hoặc người dùng tick cấu hình nhưng để trống */}
+            {(!savedApiConfig || showCustomApi) && !initialAccount && (!apiId.trim() || !apiHash.trim()) && (
               <div style={{
                 padding: '12px 14px',
                 borderRadius: '10px',
@@ -299,65 +382,70 @@ export default function AddAccountModal({ isOpen, onClose, onSuccess, initialAcc
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div className="form-group">
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span>API ID</span>
-                  <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
-                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>(Bắt buộc)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: 12345678"
-                  className="form-input"
-                  style={{
-                    borderColor: !initialAccount && !apiId.trim() ? 'rgba(239, 68, 68, 0.5)' : undefined
-                  }}
-                  value={apiId}
-                  onChange={(e) => setApiId(e.target.value)}
-                  required={!initialAccount}
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span>API Hash</span>
-                  <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
-                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>(Bắt buộc)</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: 948150d078ea..."
-                  className="form-input"
-                  style={{
-                    borderColor: !initialAccount && !apiHash.trim() ? 'rgba(239, 68, 68, 0.5)' : undefined
-                  }}
-                  value={apiHash}
-                  onChange={(e) => setApiHash(e.target.value)}
-                  required={!initialAccount}
-                />
-              </div>
-            </div>
+            {/* Chỉ hiện 2 ô API ID & API Hash khi chưa có API lưu sẵn HOẶC người dùng click vào Checkbox Cấu hình API */}
+            {(!savedApiConfig || showCustomApi) && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>API ID</span>
+                      <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
+                      <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>(Bắt buộc)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ví dụ: 12345678"
+                      className="form-input"
+                      style={{
+                        borderColor: !initialAccount && !apiId.trim() ? 'rgba(239, 68, 68, 0.5)' : undefined
+                      }}
+                      value={apiId}
+                      onChange={(e) => setApiId(e.target.value)}
+                      required={!initialAccount}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>API Hash</span>
+                      <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
+                      <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '500' }}>(Bắt buộc)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ví dụ: 948150d078ea..."
+                      className="form-input"
+                      style={{
+                        borderColor: !initialAccount && !apiHash.trim() ? 'rgba(239, 68, 68, 0.5)' : undefined
+                      }}
+                      value={apiHash}
+                      onChange={(e) => setApiHash(e.target.value)}
+                      required={!initialAccount}
+                    />
+                  </div>
+                </div>
 
-            <div style={{ marginTop: '-4px', marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-              <a
-                href="/guide/telegram-api"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  color: '#38bdf8',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  textDecoration: 'none'
-                }}
-              >
-                <HelpCircle size={13} />
-                <span>Chưa có mã? Bấm xem video hướng dẫn lấy API</span>
-                <ExternalLink size={12} />
-              </a>
-            </div>
+                <div style={{ marginTop: '-4px', marginBottom: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <a
+                    href="/guide/telegram-api"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      color: '#38bdf8',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <HelpCircle size={13} />
+                    <span>Chưa có mã? Bấm xem video hướng dẫn lấy API</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+              </>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
               <button type="button" onClick={handleClose} className="btn btn-secondary">

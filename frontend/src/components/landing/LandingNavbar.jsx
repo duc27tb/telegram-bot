@@ -15,14 +15,17 @@ export default function LandingNavbar({ user, onAuthClick }) {
 
   return (
     <nav style={{
-      position: 'sticky',
+      position: 'fixed',
       top: 0,
-      zIndex: 100,
-      background: 'rgba(7, 9, 14, 0.85)',
+      left: 0,
+      right: 0,
+      width: '100%',
+      zIndex: 1000,
+      background: 'rgba(7, 9, 14, 0.88)',
       backdropFilter: 'blur(16px)',
       WebkitBackdropFilter: 'blur(16px)',
       borderBottom: '1px solid var(--border-subtle)',
-      transition: 'background-color 0.2s ease'
+      transition: 'all 0.2s ease'
     }}>
       <div style={{
         maxWidth: '1240px',
@@ -145,38 +148,24 @@ export default function LandingNavbar({ user, onAuthClick }) {
               <span>Vào Bảng Điều Khiển</span>
             </Link>
           ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => onAuthClick('login')}
-                className="btn btn-secondary"
-                style={{
-                  height: '40px',
-                  padding: '0 16px',
-                  fontSize: '13px',
-                  fontWeight: '600'
-                }}
-              >
-                Đăng Nhập
-              </button>
-              <button
-                type="button"
-                onClick={() => onAuthClick('register')}
-                className="btn btn-primary"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  height: '40px',
-                  padding: '0 18px',
-                  fontSize: '13px',
-                  fontWeight: '700'
-                }}
-              >
-                <Sparkles size={15} />
-                <span>Bắt Đầu Miễn Phí</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => onAuthClick('login')}
+              className="btn btn-primary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                height: '40px',
+                padding: '0 20px',
+                fontSize: '13px',
+                fontWeight: '700',
+                borderRadius: '10px'
+              }}
+            >
+              <span>Đăng Nhập</span>
+              <ArrowRight size={15} />
+            </button>
           )}
 
           {/* Mobile Menu Toggle Button */}

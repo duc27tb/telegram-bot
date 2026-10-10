@@ -29,6 +29,7 @@ export default function LandingPage() {
       minHeight: '100vh',
       background: 'var(--bg-main, #07090e)',
       color: 'var(--text-main, #f8fafc)',
+      paddingTop: '70px',
       overflowX: 'hidden'
     }}>
       <LandingNavbar user={user} onAuthClick={handleAuthClick} />

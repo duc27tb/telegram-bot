@@ -16,6 +16,25 @@ from app.config import settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.ENABLE_BOT_WORKER:
+        # Tự động bổ sung API ID và API Hash hệ thống cho các tài khoản cũ chưa có
+        async def _ensure_legacy_accounts_api():
+            from app.database import get_supabase
+            sb = get_supabase()
+            if sb:
+                try:
+                    all_accs = sb.table("telegram_accounts").select("id, api_id, api_hash").execute()
+                    for acc in (all_accs.data or []):
+                        if not acc.get("api_id") or not acc.get("api_hash"):
+                            sb.table("telegram_accounts").update({
+                                "api_id": int(settings.DEFAULT_API_ID),
+                                "api_hash": settings.DEFAULT_API_HASH
+                            }).eq("id", acc["id"]).execute()
+                            print(f"✅ [Migration] Đã bổ sung API ID/Hash hệ thống cho tài khoản {acc['id']}")
+                except Exception as e:
+                    print(f"⚠️ [_ensure_legacy_accounts_api] {e}")
+
+        asyncio.create_task(_ensure_legacy_accounts_api())
+
         # Khởi động nền toàn bộ tài khoản bot Telegram để sẵn sàng lắng nghe tin nhắn đến
         asyncio.create_task(bot_engine.start_all_clients())
 

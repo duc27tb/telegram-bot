@@ -157,14 +157,21 @@ async def request_otp(body: RequestOTPBody):
     api_id_val = body.api_id
     api_hash_val = body.api_hash
 
-    # Nếu đang đăng nhập lại tài khoản đã có, tự động lấy lại api_id/hash cũ từ DB nếu người dùng không điền lại
+    # Nếu chưa truyền api_id/hash, tự động lấy lại từ DB của user này nếu đã có tài khoản lưu trước đó
     if (not api_id_val or not api_hash_val) and body.user_id and sb:
         clean_phone = normalize_phone(body.phone_number)
         try:
+            # 1. Kiểm tra tài khoản cùng số điện thoại (nếu là đăng nhập lại)
             exist_acc = sb.table("telegram_accounts").select("api_id, api_hash").eq("user_id", body.user_id).eq("phone_number", clean_phone).execute()
             if exist_acc.data and exist_acc.data[0].get("api_id") and exist_acc.data[0].get("api_hash"):
                 api_id_val = str(exist_acc.data[0]["api_id"])
                 api_hash_val = str(exist_acc.data[0]["api_hash"])
+            else:
+                # 2. Hoặc lấy cặp API ID & Hash của tài khoản gần nhất người dùng này đã cấu hình
+                any_acc = sb.table("telegram_accounts").select("api_id, api_hash").eq("user_id", body.user_id).not_.is_("api_id", "null").order("created_at", desc=True).limit(1).execute()
+                if any_acc.data and any_acc.data[0].get("api_id") and any_acc.data[0].get("api_hash"):
+                    api_id_val = str(any_acc.data[0]["api_id"])
+                    api_hash_val = str(any_acc.data[0]["api_hash"])
         except Exception:
             pass
 
