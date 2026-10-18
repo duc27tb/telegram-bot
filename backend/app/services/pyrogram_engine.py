@@ -471,7 +471,30 @@ class PyrogramEngine:
             return {"success": False, "error": "Tài khoản Telegram hiện chưa online. Vui lòng kiểm tra lại trạng thái tài khoản!"}
 
         try:
-            msg = await client.get_messages(chat_id=chat_id, message_ids=message_id)
+            try:
+                msg = await client.get_messages(chat_id=chat_id, message_ids=message_id)
+            except Exception as peer_err:
+                # Nếu peer chưa có trong cache SQLite MTProto, tra cứu username từ bảng customer_conversations để nạp peer
+                resolved = False
+                try:
+                    conv_res = sb.table("customer_conversations").select("sender_username").eq("account_id", account_id).eq("sender_id", chat_id).execute()
+                    if conv_res.data and conv_res.data[0].get("sender_username"):
+                        target_un = conv_res.data[0]["sender_username"].replace("@", "").strip()
+                        u = await client.get_users(target_un)
+                        if u:
+                            msg = await client.get_messages(chat_id=u.id, message_ids=message_id)
+                            resolved = True
+                except Exception:
+                    pass
+
+                if not resolved:
+                    try:
+                        async for _ in client.get_dialogs(limit=20):
+                            pass
+                        msg = await client.get_messages(chat_id=chat_id, message_ids=message_id)
+                    except Exception:
+                        return {"success": False, "error": f"Lỗi xác thực người dùng Telegram: {peer_err}"}
+
             if not msg:
                 return {"success": False, "error": "Tin nhắn không tồn tại hoặc đã bị xóa trên Telegram"}
 

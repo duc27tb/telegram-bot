@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Telegram Bot SaaS Engine",
     description="Backend API điều khiển dàn bot Telegram đa người dùng với Supabase & Pyrogram",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan
 )
 
