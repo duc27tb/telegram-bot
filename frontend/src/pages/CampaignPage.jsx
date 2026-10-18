@@ -26,7 +26,8 @@ import {
   Users,
   Info,
   ShieldCheck,
-  X
+  X,
+  Copy
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -69,6 +70,9 @@ export default function CampaignPage() {
   // Message Templates List
   const [templates, setTemplates] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileTab, setMobileTab] = useState('editor'); // 'editor' | 'templates'
+  const [selectedLogDetail, setSelectedLogDetail] = useState(null);
+  const [copiedLogText, setCopiedLogText] = useState(false);
 
   // Editor State (Bên trái: Thêm / Sửa)
   const [editingTemplateId, setEditingTemplateId] = useState(null);
@@ -328,6 +332,7 @@ export default function CampaignPage() {
     setEditingTemplateId(tmpl.id);
     setEditorContent(tmpl.content);
     setEditorIsActive(tmpl.is_active ?? true);
+    setMobileTab('editor'); // Tự động switch sang tab Soạn Tin trên mobile
   };
 
   // Hủy chỉnh sửa để chuyển về chế độ thêm tin nhắn mới
@@ -335,6 +340,7 @@ export default function CampaignPage() {
     setEditingTemplateId(null);
     setEditorContent('');
     setEditorIsActive(true);
+    setMobileTab('editor');
   };
 
   // Lưu tin nhắn (Tạo mới hoặc Cập nhật)
@@ -799,11 +805,67 @@ export default function CampaignPage() {
         </div>
       </div>
 
-      {/* 2. CHIA 2 CỘT: BÊN TRÁI THÊM/SỬA TIN NHẮN, BÊN PHẢI DANH SÁCH TIN NHẮN ĐÃ LƯU */}
+      {/* 2. TAB SWITCHER DÀNH RIÊNG CHO MOBILE */}
+      <div className="campaign-mobile-tabs mobile-only" style={{
+        display: 'none',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '8px',
+        marginBottom: '16px'
+      }}>
+        <button
+          type="button"
+          onClick={() => setMobileTab('editor')}
+          className={`btn ${mobileTab === 'editor' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{
+            height: '40px',
+            fontSize: '12.5px',
+            fontWeight: '700',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          <Edit3 size={15} />
+          <span>{editingTemplateId ? 'Đang Sửa Tin' : 'Soạn Tin Mới'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileTab('templates')}
+          className={`btn ${mobileTab === 'templates' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{
+            height: '40px',
+            fontSize: '12.5px',
+            fontWeight: '700',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          <MessageSquare size={15} />
+          <span>Kho Tin ({templates.length})</span>
+          {activeCount > 0 && (
+            <span style={{
+              fontSize: '10px',
+              padding: '1px 5px',
+              borderRadius: '999px',
+              background: mobileTab === 'templates' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(16, 185, 129, 0.2)',
+              color: mobileTab === 'templates' ? '#fff' : '#34d399',
+              fontWeight: '800'
+            }}>
+              {activeCount} bật
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* 3. CHIA 2 CỘT: BÊN TRÁI THÊM/SỬA TIN NHẮN, BÊN PHẢI DANH SÁCH TIN NHẮN ĐÃ LƯU */}
       <div className="campaign-grid">
         
         {/* CỘT TRÁI: FORM THÊM / CHỈNH SỬA TIN NHẮN */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className={`card campaign-col-editor ${mobileTab !== 'editor' ? 'mobile-hidden' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="card-header-flex" style={{ marginBottom: '14px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1013,7 +1075,7 @@ export default function CampaignPage() {
         </div>
 
         {/* CỘT PHẢI: DANH SÁCH CÁC TIN NHẮN ĐÃ LƯU */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className={`card campaign-col-templates ${mobileTab !== 'templates' ? 'mobile-hidden' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="card-header-flex" style={{ marginBottom: '14px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1461,26 +1523,35 @@ export default function CampaignPage() {
                   minute: '2-digit',
                   second: '2-digit'
                 });
+                const logTimeShort = new Date(log.created_at).toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                const friendlyMessage = formatFriendlyLogMessage(log.message);
 
                 return (
                   <div
                     key={log.id}
+                    onClick={() => setSelectedLogDetail(log)}
+                    className="campaign-log-row"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '12px',
-                      padding: '9px 12px',
+                      gap: '10px',
+                      padding: '8px 12px',
                       background: 'rgba(255, 255, 255, 0.02)',
                       borderRadius: '6px',
                       border: '1px solid rgba(255, 255, 255, 0.04)',
                       fontSize: '12.5px',
+                      cursor: 'pointer',
                       transition: 'background 0.15s ease'
                     }}
+                    title="Bấm để xem chi tiết bản ghi nhật ký này"
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                       {/* Monospace Timestamp */}
-                      <span style={{
+                      <span className="campaign-log-time" style={{
                         fontFamily: 'Consolas, Monaco, monospace',
                         fontSize: '11px',
                         color: 'var(--text-muted)',
@@ -1489,7 +1560,8 @@ export default function CampaignPage() {
                         padding: '2px 6px',
                         borderRadius: '4px'
                       }}>
-                        {logTime}
+                        <span className="log-time-desktop">{logTime}</span>
+                        <span className="log-time-mobile mobile-only" style={{ display: 'none' }}>{logTimeShort}</span>
                       </span>
 
                       {/* Status Tag */}
@@ -1508,7 +1580,7 @@ export default function CampaignPage() {
 
                       {/* Account tag if available */}
                       {accLabel && (
-                        <span style={{
+                        <span className="campaign-log-account" style={{
                           fontSize: '11px',
                           color: 'var(--text-muted)',
                           background: 'rgba(255, 255, 255, 0.04)',
@@ -1520,16 +1592,21 @@ export default function CampaignPage() {
                         </span>
                       )}
 
-                      {/* Log Message */}
-                      <span style={{
+                      {/* Log Message Truncated */}
+                      <span className="campaign-log-message" style={{
                         color: isError ? '#fca5a5' : isWarning ? '#fde68a' : 'var(--text-secondary)',
-                        wordBreak: 'break-word',
                         minWidth: 0,
+                        flex: 1,
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
                       }}>
-                        {formatFriendlyLogMessage(log.message)}
+                        {friendlyMessage}
                       </span>
+                    </div>
+
+                    <div style={{ flexShrink: 0, color: 'var(--text-muted)', opacity: 0.6, display: 'inline-flex', alignItems: 'center' }}>
+                      <Info size={13} />
                     </div>
                   </div>
                 );
@@ -1707,6 +1784,106 @@ export default function CampaignPage() {
                 Đã Hiểu
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL XEM CHI TIẾT NHẬT KÝ RẢI TIN (Bật khi bấm vào dòng log) */}
+      {selectedLogDetail && (
+        <div className="modal-overlay" onClick={() => setSelectedLogDetail(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', padding: '22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '15px', color: 'var(--text-main)' }}>
+                <Terminal size={18} color="var(--primary-light)" />
+                <span>Chi Tiết Nhật Ký Gửi Tin</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLogDetail(null)}
+                className="btn-icon-subtle"
+                style={{ padding: '4px' }}
+                title="Đóng cửa sổ"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Thời gian:</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text-main)' }}>
+                  {new Date(selectedLogDetail.created_at).toLocaleString('vi-VN')}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Trạng thái:</span>
+                <span style={{
+                  fontWeight: '700',
+                  color: selectedLogDetail.log_type === 'sent' ? '#34d399' : selectedLogDetail.log_type === 'warning' ? '#fbbf24' : '#f87171'
+                }}>
+                  {selectedLogDetail.log_type === 'sent' ? '✅ Gửi thành công' : selectedLogDetail.log_type === 'warning' ? '⚠️ Cảnh báo' : '❌ Thất bại'}
+                </span>
+              </div>
+
+              {selectedLogDetail.account_id && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Tài khoản bot:</span>
+                  <span style={{ color: '#c7d2fe', fontWeight: '600' }}>
+                    {(() => {
+                      const a = accounts.find(acc => acc.id === selectedLogDetail.account_id);
+                      return a ? (a.account_name || a.phone_number) : selectedLogDetail.account_id;
+                    })()}
+                  </span>
+                </div>
+              )}
+
+              {/* Hộp nội dung / lý do chi tiết */}
+              <div style={{ marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Nội dung nhật ký / Lý do chi tiết:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedLogDetail.message || '');
+                      setCopiedLogText(true);
+                      setTimeout(() => setCopiedLogText(false), 2000);
+                    }}
+                    className="btn-icon-subtle"
+                    title="Sao chép nội dung log"
+                    style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px' }}
+                  >
+                    {copiedLogText ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
+                    <span>{copiedLogText ? 'Đã sao chép' : 'Sao chép'}</span>
+                  </button>
+                </div>
+                <div style={{
+                  padding: '12px',
+                  background: 'rgba(0, 0, 0, 0.4)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  lineHeight: '1.5',
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  color: selectedLogDetail.log_type === 'error' ? '#fca5a5' : 'var(--text-main)',
+                  fontFamily: 'Consolas, Monaco, monospace'
+                }}>
+                  {formatFriendlyLogMessage(selectedLogDetail.message)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedLogDetail(null)}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '40px', justifyContent: 'center', fontWeight: '700' }}
+            >
+              Đóng Cửa Sổ
+            </button>
           </div>
         </div>
       )}

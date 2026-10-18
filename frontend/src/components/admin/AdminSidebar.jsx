@@ -11,10 +11,18 @@ import {
   Sparkles,
   Server,
   Activity,
-  Layers
+  Layers,
+  X
 } from 'lucide-react';
 
-export default function AdminSidebar({ activeTab, onSelectTab, onLogout, userEmail = 'admin@telepulse.io' }) {
+export default function AdminSidebar({ 
+  activeTab, 
+  onSelectTab, 
+  onLogout, 
+  userEmail = 'admin@telepulse.io',
+  isOpen = false,
+  onClose
+}) {
   const menuItems = [
     {
       id: 'overview',
@@ -60,92 +68,107 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, userEma
     }
   ];
 
+  const handleSelect = (id) => {
+    onSelectTab(id);
+    if (onClose) onClose();
+  };
+
   return (
-    <aside className="admin-sidebar" style={{
-      width: '270px',
-      minWidth: '270px',
-      height: '100vh',
-      position: 'sticky',
-      top: 0,
-      background: 'var(--bg-sidebar, #0b0f19)',
-      borderRight: '1px solid var(--border-subtle, rgba(239, 68, 68, 0.25))',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      padding: '20px 16px',
-      zIndex: 50,
-      boxShadow: '4px 0 24px rgba(0, 0, 0, 0.1)',
-      transition: 'background-color 0.2s ease, border-color 0.2s ease'
-    }}>
-      {/* Top Branding */}
-      <div>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '10px 12px',
-          background: 'rgba(239, 68, 68, 0.08)',
-          borderRadius: '12px',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          marginBottom: '24px'
-        }}>
+    <>
+      {/* Backdrop trên màn hình mobile / tablet */}
+      {isOpen && <div className="admin-sidebar-backdrop" onClick={onClose} />}
+
+      <aside className={`admin-sidebar ${isOpen ? 'open' : ''}`}>
+        {/* Top Branding */}
+        <div>
           <div style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: '#ffffff',
-            boxShadow: '0 4px 14px rgba(239, 68, 68, 0.45)',
-            flexShrink: 0
+            justifyContent: 'space-between',
+            padding: '10px 12px',
+            background: 'rgba(239, 68, 68, 0.08)',
+            borderRadius: '12px',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            marginBottom: '24px'
           }}>
-            <ShieldAlert size={22} />
-          </div>
-          <div style={{ overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '15px', fontWeight: '900', color: '#f8fafc', letterSpacing: '-0.3px' }}>
-                TelePulse Control
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                boxShadow: '0 0 16px rgba(239, 68, 68, 0.35)',
+                flexShrink: 0
+              }}>
+                <ShieldAlert size={22} />
+              </div>
+              <div>
+                <div style={{
+                  fontSize: '15px',
+                  fontWeight: '800',
+                  color: 'var(--text-main, #ffffff)',
+                  letterSpacing: '-0.3px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span>TelePulse</span>
+                  <span style={{
+                    fontSize: '9px',
+                    fontWeight: '900',
+                    padding: '2px 5px',
+                    borderRadius: '4px',
+                    background: '#ef4444',
+                    color: '#ffffff'
+                  }}>
+                    ROOT
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)' }}>
+                  Platform Owner Center
+                </div>
+              </div>
             </div>
-            <div style={{
-              fontSize: '10px',
-              fontWeight: '800',
-              color: '#f87171',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              marginTop: '1px'
-            }}>
-              👑 Chủ Nền Tảng (Owner)
-            </div>
+
+            {/* Nút đóng trên mobile */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="admin-sidebar-close-btn"
+              aria-label="Đóng menu admin"
+            >
+              <X size={18} />
+            </button>
           </div>
-        </div>
 
-        {/* Section title */}
-        <div style={{
-          fontSize: '10px',
-          fontWeight: '800',
-          color: '#64748b',
-          textTransform: 'uppercase',
-          letterSpacing: '0.8px',
-          padding: '0 12px',
-          marginBottom: '10px'
-        }}>
-          Hệ Thống Quản Trị Trung Tâm
-        </div>
+          {/* Section title */}
+          <div style={{
+            fontSize: '10px',
+            fontWeight: '800',
+            color: '#64748b',
+            textTransform: 'uppercase',
+            letterSpacing: '0.8px',
+            padding: '0 12px',
+            marginBottom: '10px'
+          }}>
+            Hệ Thống Quản Trị Trung Tâm
+          </div>
 
-        {/* Navigation items */}
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+          {/* Navigation items */}
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onSelectTab(item.id)}
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSelect(item.id)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -269,5 +292,6 @@ export default function AdminSidebar({ activeTab, onSelectTab, onLogout, userEma
         </button>
       </div>
     </aside>
+  </>
   );
 }

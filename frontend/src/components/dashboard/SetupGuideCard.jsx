@@ -57,7 +57,7 @@ export default function SetupGuideCard({
   const allReady = completedCount === 3;
 
   return (
-    <div className="card" style={{
+    <div className="card setup-guide-card" style={{
       marginBottom: '20px',
       padding: '24px',
       border: '1px solid var(--border-subtle)',
@@ -241,7 +241,7 @@ export default function SetupGuideCard({
       </div>
 
       {/* Nút Bắt Đầu Spam */}
-      <div style={{
+      <div className="setup-action-banner" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -252,7 +252,7 @@ export default function SetupGuideCard({
         background: allReady ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.04)',
         border: `1px solid ${allReady ? 'rgba(99, 102, 241, 0.35)' : 'rgba(99, 102, 241, 0.18)'}`
       }}>
-        <div style={{ flex: 1, minWidth: '260px' }}>
+        <div style={{ flex: 1, minWidth: '220px' }}>
           <div style={{ fontSize: '14.5px', fontWeight: '700', color: allReady ? 'var(--text-main)' : '#e2e8f0' }}>
             {allReady 
               ? '✅ Tất cả 3 bước đã sẵn sàng! Bạn có thể kích hoạt phát tin ngay bây giờ.' 
@@ -267,6 +267,7 @@ export default function SetupGuideCard({
 
         <button
           type="button"
+          className="setup-action-btn"
           onClick={() => {
             if (isToggling) return;
             if (!allReady) {

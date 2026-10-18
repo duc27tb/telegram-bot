@@ -159,7 +159,7 @@ export default function LandingHero({ onAuthClick, onPricingClick }) {
           background: 'var(--bg-card)',
           border: '1px solid var(--border-medium)',
           borderRadius: '20px',
-          padding: '24px',
+          padding: 'clamp(14px, 3vw, 24px)',
           boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 30px rgba(99, 102, 241, 0.15)',
           overflow: 'hidden'
         }}>
@@ -168,15 +168,17 @@ export default function LandingHero({ onAuthClick, onPricingClick }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingBottom: '16px',
-            marginBottom: '18px',
+            flexWrap: 'wrap',
+            gap: '10px',
+            paddingBottom: '14px',
+            marginBottom: '16px',
             borderBottom: '1px solid var(--border-subtle)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ef4444' }} />
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#f59e0b' }} />
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#10b981' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: '8px', fontFamily: 'monospace' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }} />
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#f59e0b' }} />
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }} />
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '6px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 telepulse.io/dashboard • MTProto Fleet Engine v2.0
               </span>
             </div>
@@ -184,23 +186,24 @@ export default function LandingHero({ onAuthClick, onPricingClick }) {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '3px 10px',
+              padding: '2px 8px',
               borderRadius: '999px',
               background: 'rgba(16, 185, 129, 0.15)',
               color: 'var(--success)',
-              fontSize: '11px',
-              fontWeight: '700'
+              fontSize: '10px',
+              fontWeight: '700',
+              flexShrink: 0
             }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--success)' }} />
-              <span>HỆ THỐNG VẬN HÀNH BÌNH THƯỜNG</span>
+              <span>HỆ THỐNG TRỰC TUYẾN</span>
             </div>
           </div>
 
           {/* Mockup Dashboard Grid */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: '16px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
+            gap: '14px',
             textAlign: 'left'
           }}>
             {/* Box 1: Fleet Accounts */}

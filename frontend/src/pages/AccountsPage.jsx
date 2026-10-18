@@ -263,7 +263,8 @@ export default function AccountsPage({ onOpenAddAccount }) {
         </div>
       )}
 
-      <div className="table-container">
+      {/* BẢNG DESKTOP & TABLET */}
+      <div className="table-container accounts-desktop-table">
         <table style={{ minWidth: '700px' }}>
           <thead>
             <tr>
@@ -512,6 +513,150 @@ export default function AccountsPage({ onOpenAddAccount }) {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* DANH SÁCH THẺ MOBILE CHO SMARTPHONE (<= 640px) */}
+      <div className="accounts-mobile-cards">
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '36px' }}>
+            <Loader2 className="spin" style={{ margin: '0 auto' }} color="var(--primary)" />
+          </div>
+        ) : accounts.length === 0 ? (
+          <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+            Chưa có tài khoản nào được kết nối. Bấm "Thêm Tài Khoản Mới" để bắt đầu!
+          </div>
+        ) : (
+          accounts.map((acc) => {
+            const isOnline = acc.status === 'online';
+            const isLoading = actionLoading === acc.id;
+            const groupCount = groupCounts[acc.id] || 0;
+
+            return (
+              <div 
+                key={acc.id} 
+                className="account-mobile-card"
+                onClick={() => navigate(`/groups?account=${acc.id}`)}
+              >
+                {/* Header card: Icon + Name + Status */}
+                <div className="acc-card-top">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div className="acc-card-icon">
+                      <Phone size={18} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="acc-card-name">
+                        {acc.account_name || 'Tài khoản Telegram'}
+                      </div>
+                      <div className="acc-card-phone">
+                        {acc.phone_number}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    {acc.status === 'online' ? (
+                      <span className="badge badge-online">Hoạt động</span>
+                    ) : acc.status === 'error' ? (
+                      <span 
+                        className="badge" 
+                        style={{ 
+                          background: 'rgba(239, 68, 68, 0.15)', 
+                          color: '#f87171', 
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          fontSize: '11px'
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenErrorInfo(acc);
+                        }}
+                      >
+                        ⚠️ Lỗi phiên
+                      </span>
+                    ) : (
+                      <span className="badge badge-offline">Tạm dừng</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Nhóm mục tiêu & Hành động nhanh */}
+                <div className="acc-card-meta">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className="badge badge-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 7px', fontSize: '11px' }}>
+                      <Layers size={12} />
+                      <span>{groupCount} nhóm</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedAccountForAutoJoin(acc);
+                        setShowAutoJoinModal(true);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '3px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px', color: 'var(--primary-light)' }}
+                    >
+                      <Zap size={11} />
+                      <span>⚡ Join Nhóm</span>
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {new Date(acc.created_at).toLocaleDateString('vi-VN')}
+                  </span>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="acc-card-actions" onClick={(e) => e.stopPropagation()}>
+                  {acc.status === 'error' ? (
+                    <>
+                      <button
+                        onClick={() => setReloginAccount(acc)}
+                        className="btn btn-warning btn-sm"
+                        style={{ flex: 1, justifyContent: 'center' }}
+                      >
+                        <RefreshCw size={13} />
+                        <span>Đăng Nhập Lại</span>
+                      </button>
+                      <button
+                        onClick={() => handleStartBot(acc.id)}
+                        disabled={isLoading}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <Play size={13} />
+                      </button>
+                    </>
+                  ) : isOnline ? (
+                    <button
+                      onClick={() => handleStopBot(acc.id)}
+                      disabled={isLoading}
+                      className="btn btn-secondary btn-sm"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      <Square size={13} />
+                      <span>Tạm Dừng</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleStartBot(acc.id)}
+                      disabled={isLoading}
+                      className="btn btn-primary btn-sm"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      <Play size={13} />
+                      <span>Khởi Chạy Bot</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setAccountToDelete(acc)}
+                    className="btn btn-danger btn-sm"
+                    title="Xóa nick"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* MODAL AUTO-JOIN NHÓM CHUNG */}

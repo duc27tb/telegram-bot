@@ -14,7 +14,9 @@ import {
   Smile, 
   Clock,
   Sparkles,
-  Bot
+  Bot,
+  Info,
+  Copy
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -39,6 +41,8 @@ export default function LiveChatPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [replyingTo, setReplyingTo] = useState(null); // { id, sender_name, text }
   const [accountsMap, setAccountsMap] = useState({}); // { [account_id]: { phone_number, account_name } }
+  const [showConvInfoModal, setShowConvInfoModal] = useState(false);
+  const [copiedSenderId, setCopiedSenderId] = useState(false);
 
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
@@ -649,99 +653,141 @@ export default function LiveChatPage() {
         <div className="chat-main">
           {activeConv ? (
             <>
-              {/* 1. Header Khách Hàng */}
+              {/* 1. Header Khách Hàng (Tối giản trên Mobile, đầy đủ trên Desktop) */}
               <div className="chat-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => setActiveConv(null)}
-                    className="btn btn-secondary btn-sm mobile-chat-back-btn"
-                    title="Quay lại danh sách"
-                  >
-                    <ArrowLeft size={16} />
-                  </button>
+                <div className="chat-header-flex-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                    <button
+                      onClick={() => setActiveConv(null)}
+                      className="btn btn-secondary btn-sm mobile-chat-back-btn"
+                      title="Quay lại danh sách"
+                      style={{ padding: '6px 8px', flexShrink: 0 }}
+                    >
+                      <ArrowLeft size={16} />
+                    </button>
 
-                  <div style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '50%',
-                    background: 'var(--primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    fontSize: '14px',
-                    flexShrink: 0
-                  }}>
-                    {activeConv.sender_name?.charAt(0)?.toUpperCase() || 'K'}
-                  </div>
-
-                  <div>
-                    <div style={{ fontWeight: '700', fontSize: '14.5px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>{activeConv.sender_name}</span>
-                      {activeConv.sender_username && (
-                        <span style={{ fontSize: '12px', color: 'var(--primary-light)', fontWeight: 'normal' }}>
-                          (@{activeConv.sender_username})
-                        </span>
-                      )}
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      flexShrink: 0
+                    }}>
+                      {activeConv.sender_name?.charAt(0)?.toUpperCase() || 'K'}
                     </div>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                        Telegram ID: {activeConv.sender_id}
-                      </span>
 
-                      {/* Badge hiển thị rõ tài khoản bot nhận tin nhắn */}
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.1) 100%)',
-                        border: '1px solid rgba(99, 102, 241, 0.3)',
-                        color: '#c7d2fe',
-                        fontSize: '11px',
-                        fontWeight: '600'
-                      }}>
-                        <Bot size={12} color="#818cf8" />
-                        <span>Nhắn tới Bot: <strong>{accountsMap[activeConv.account_id]?.account_name || 'Bot Telegram'}</strong> {accountsMap[activeConv.account_id]?.phone_number ? `(${accountsMap[activeConv.account_id].phone_number})` : ''}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      {/* Dòng tên người gửi */}
+                      <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {activeConv.sender_name}
+                        </span>
+                        {activeConv.sender_username && (
+                          <span style={{ fontSize: '11.5px', color: 'var(--primary-light)', fontWeight: 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            (@{activeConv.sender_username})
+                          </span>
+                        )}
                       </div>
-
-                      {/* Badge trạng thái gói cước */}
-                      {isVip ? (
-                        <span style={{
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          background: 'rgba(245, 158, 11, 0.15)',
-                          border: '1px solid rgba(245, 158, 11, 0.35)',
-                          color: '#fbbf24',
-                          fontSize: '11px',
-                          fontWeight: '700',
+                      
+                      {/* Dòng người nhận bot & thông tin */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+                        {/* Tag Nhắn tới Bot */}
+                        <div className="chat-header-bot-tag" style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <Crown size={12} /> 2 Chiều Trực Tiếp
-                        </span>
-                      ) : (
-                        <span style={{
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          background: 'rgba(148, 163, 184, 0.12)',
-                          border: '1px solid rgba(148, 163, 184, 0.25)',
-                          color: '#94a3b8',
+                          gap: '4px',
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.1) 100%)',
+                          border: '1px solid rgba(99, 102, 241, 0.3)',
+                          color: '#c7d2fe',
                           fontSize: '11px',
                           fontWeight: '600',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
+                          maxWidth: '220px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
                         }}>
-                          <Lock size={12} /> Chế Độ Chỉ Đọc (Free)
+                          <Bot size={11} color="#818cf8" style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Nhắn tới: <strong>{accountsMap[activeConv.account_id]?.account_name || 'Bot'}</strong>
+                          </span>
+                          <span className="chat-header-phone-desktop">
+                            {accountsMap[activeConv.account_id]?.phone_number ? `(${accountsMap[activeConv.account_id].phone_number})` : ''}
+                          </span>
+                        </div>
+
+                        {/* Các thông tin phụ chỉ hiển thị trên Desktop / Tablet */}
+                        <span className="chat-header-extra-desktop" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                            Telegram ID: {activeConv.sender_id}
+                          </span>
+
+                          {/* Badge trạng thái gói cước */}
+                          {isVip ? (
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              color: '#fbbf24',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <Crown size={12} /> 2 Chiều Trực Tiếp
+                            </span>
+                          ) : (
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: 'rgba(148, 163, 184, 0.12)',
+                              border: '1px solid rgba(148, 163, 184, 0.25)',
+                              color: '#94a3b8',
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <Lock size={12} /> Chỉ Đọc (Free)
+                            </span>
+                          )}
                         </span>
-                      )}
+                      </div>
                     </div>
                   </div>
+
+                  {/* Icon Info Xem Chi Tiết Trên Mobile & Desktop */}
+                  <button
+                    type="button"
+                    onClick={() => setShowConvInfoModal(true)}
+                    className="btn-icon-subtle chat-header-info-btn"
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--primary-light)',
+                      cursor: 'pointer',
+                      flexShrink: 0
+                    }}
+                    title="Bấm để xem chi tiết Telegram ID, số bot và gói cước"
+                  >
+                    <Info size={17} />
+                  </button>
                 </div>
               </div>
 
@@ -1013,6 +1059,114 @@ export default function LiveChatPage() {
         </div>
 
       </div>
+
+      {/* POPUP CHI TIẾT THÔNG TIN CUỘC TRÒ CHUYỆN (Bật khi bấm icon Info) */}
+      {showConvInfoModal && activeConv && (
+        <div className="modal-overlay" onClick={() => setShowConvInfoModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', padding: '22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '15px', color: 'var(--text-main)' }}>
+                <Info size={18} color="var(--primary-light)" />
+                <span>Chi Tiết Cuộc Trò Chuyện</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConvInfoModal(false)}
+                className="btn-icon-subtle"
+                style={{ padding: '4px' }}
+                title="Đóng cửa sổ"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Thông tin khách hàng */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', padding: '12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                background: 'var(--primary)',
+                color: '#fff',
+                fontWeight: '800',
+                fontSize: '17px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                {activeConv.sender_name?.charAt(0)?.toUpperCase() || 'K'}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text-main)' }}>
+                  {activeConv.sender_name}
+                </div>
+                {activeConv.sender_username ? (
+                  <div style={{ fontSize: '12px', color: 'var(--primary-light)', marginTop: '2px' }}>
+                    @{activeConv.sender_username}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Chưa cài username Telegram
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bảng chi tiết ID, Bot & Quyền hạn */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Telegram ID:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: '700', color: 'var(--text-main)' }}>{activeConv.sender_id}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(String(activeConv.sender_id));
+                      setCopiedSenderId(true);
+                      setTimeout(() => setCopiedSenderId(false), 2000);
+                    }}
+                    className="btn-icon-subtle"
+                    title="Sao chép Telegram ID"
+                    style={{ padding: '3px' }}
+                  >
+                    {copiedSenderId ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Bot Tiếp Nhận:</span>
+                <span style={{ fontWeight: '600', color: '#c7d2fe' }}>
+                  {accountsMap[activeConv.account_id]?.account_name || 'Bot Telegram'} {accountsMap[activeConv.account_id]?.phone_number ? `(${accountsMap[activeConv.account_id].phone_number})` : ''}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Quyền Phản Hồi:</span>
+                {isVip ? (
+                  <span style={{ color: '#fbbf24', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Crown size={13} /> 2 Chiều Trực Tiếp (VIP)
+                  </span>
+                ) : (
+                  <span style={{ color: '#94a3b8', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Lock size={13} /> Chế Độ Chỉ Đọc (Free)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowConvInfoModal(false)}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '42px', justifyContent: 'center', fontWeight: '700' }}
+            >
+              Đóng Cửa Sổ
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { 
-  Crown, 
-  Check, 
-  X, 
-  Sparkles, 
-  Zap, 
-  ShieldCheck, 
-  Users, 
-  MessageSquare, 
-  Wallet, 
-  ArrowRight, 
-  Loader2, 
+import {
+  Crown,
+  Check,
+  X,
+  Sparkles,
+  Zap,
+  ShieldCheck,
+  Users,
+  MessageSquare,
+  Wallet,
+  ArrowRight,
+  Loader2,
   HelpCircle,
   Clock,
   QrCode
@@ -85,10 +85,10 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="page-container" style={{ padding: '28px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="page-container pricing-page-container" style={{ padding: '28px', maxWidth: '1200px', margin: '0 auto' }}>
       {/* 1. Header Banner */}
-      <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-        <div style={{
+      <div className="pricing-header-banner" style={{ textAlign: 'center', marginBottom: '36px' }}>
+        <div className="pricing-badge" style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '8px',
@@ -102,18 +102,18 @@ export default function PricingPage() {
           marginBottom: '14px'
         }}>
           <Sparkles size={16} />
-          <span>BẢNG GIÁ DỊCH VỤ & QUYỀN LỢI HỘI VIÊN TELEPULSE</span>
+          <span>BẢNG GIÁ DỊCH VỤ HỘI VIÊN TELEPULSE</span>
         </div>
-        <h1 style={{ fontSize: '30px', fontWeight: '800', color: 'var(--text-main, #f8fafc)', margin: '0 0 10px 0', letterSpacing: '-0.5px' }}>
+        <h1 className="pricing-title" style={{ fontSize: '30px', fontWeight: '800', color: 'var(--text-main, #f8fafc)', margin: '0 0 10px 0', letterSpacing: '-0.5px' }}>
           Đầu Tư Đúng Đắn Để Tăng Tốc Tiếp Thị Telegram
         </h1>
-        <p style={{ fontSize: '15px', color: 'var(--text-muted, #94a3b8)', margin: '0 auto', maxWidth: '640px', lineHeight: '1.6' }}>
+        <p className="pricing-desc" style={{ fontSize: '15px', color: 'var(--text-muted, #94a3b8)', margin: '0 auto', maxWidth: '640px', lineHeight: '1.6' }}>
           Mở khóa khả năng vận hành 10 tài khoản bot song song, Live Chat 2 chiều tức thì và thuật toán chống khoá FloodWait thông minh.
         </p>
       </div>
 
       {/* 2. Thanh hiển thị số dư ví hiện tại */}
-      <div style={{
+      <div className="pricing-wallet-bar" style={{
         background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%)',
         border: '1px solid rgba(99, 102, 241, 0.25)',
         borderRadius: '14px',
@@ -126,7 +126,7 @@ export default function PricingPage() {
         marginBottom: '32px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{
+          <div className="pricing-wallet-icon" style={{
             width: '42px',
             height: '42px',
             borderRadius: '10px',
@@ -140,7 +140,7 @@ export default function PricingPage() {
           </div>
           <div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Số dư khả dụng trong ví:</div>
-            <div style={{ fontSize: '20px', fontWeight: '800', color: '#818cf8' }}>
+            <div className="pricing-wallet-balance" style={{ fontSize: '20px', fontWeight: '800', color: '#818cf8' }}>
               {currentBalance.toLocaleString('vi-VN')} ₫
             </div>
           </div>
@@ -154,7 +154,7 @@ export default function PricingPage() {
           )}
           <button
             onClick={() => navigate('/wallet')}
-            className="btn btn-primary"
+            className="btn btn-primary pricing-deposit-btn"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -170,7 +170,7 @@ export default function PricingPage() {
       </div>
 
       {/* 3. Bảng So Sánh 2 Gói Cước */}
-      <div style={{
+      <div className="pricing-plans-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
         gap: '24px',

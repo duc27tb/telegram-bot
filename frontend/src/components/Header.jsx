@@ -54,35 +54,10 @@ export default function Header({ title, onOpenMobileMenu, onNavigateTab }) {
             onClick={() => onNavigateTab && onNavigateTab('pricing')}
             className="btn-header-vip pulse-gold"
             title="Nâng cấp VIP để mở khóa 10 tài khoản Telegram và tính năng nâng cao"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: '7px 16px',
-              borderRadius: '20px',
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              border: 'none',
-              color: '#ffffff',
-              fontSize: '12px',
-              fontWeight: '800',
-              cursor: 'pointer',
-              boxShadow: '0 3px 14px rgba(245, 158, 11, 0.45)',
-              letterSpacing: '0.2px',
-              transition: 'transform 0.15s, box-shadow 0.15s'
-            }}
           >
             <Crown size={15} />
-            <span>GÓI CƯỚC VIP</span>
-            <span style={{
-              fontSize: '9px',
-              fontWeight: '900',
-              padding: '2px 5px',
-              borderRadius: '4px',
-              background: 'rgba(0, 0, 0, 0.3)',
-              color: '#fff'
-            }}>
-              HOT
-            </span>
+            <span className="header-vip-text">GÓI CƯỚC VIP</span>
+            <span className="header-vip-badge">HOT</span>
           </button>
         )}
 
@@ -116,7 +91,7 @@ export default function Header({ title, onOpenMobileMenu, onNavigateTab }) {
             title="Nạp tiền vào tài khoản qua VietQR"
           >
             <PlusCircle size={17} />
-            <span>Nạp Tiền</span>
+            <span className="header-deposit-text">Nạp Tiền</span>
           </button>
         </div>
 

@@ -25,7 +25,7 @@ export default function LandingWorkflow({ onAuthClick }) {
 
   return (
     <section id="workflow" style={{
-      padding: '80px 24px',
+      padding: 'clamp(50px, 8vw, 80px) clamp(16px, 4vw, 24px)',
       background: 'linear-gradient(180deg, rgba(11, 14, 23, 0.4) 0%, rgba(17, 22, 36, 0.6) 100%)',
       borderTop: '1px solid var(--border-subtle)',
       borderBottom: '1px solid var(--border-subtle)'
@@ -35,7 +35,7 @@ export default function LandingWorkflow({ onAuthClick }) {
         margin: '0 auto'
       }}>
         {/* Section Header */}
-        <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -54,7 +54,7 @@ export default function LandingWorkflow({ onAuthClick }) {
           </div>
 
           <h2 style={{
-            fontSize: 'clamp(28px, 4vw, 40px)',
+            fontSize: 'clamp(24px, 4vw, 40px)',
             fontWeight: '800',
             letterSpacing: '-0.8px',
             color: 'var(--text-main)',
@@ -64,7 +64,7 @@ export default function LandingWorkflow({ onAuthClick }) {
           </h2>
 
           <p style={{
-            fontSize: '16px',
+            fontSize: 'clamp(14px, 2vw, 16px)',
             color: 'var(--text-secondary)',
             maxWidth: '640px',
             margin: '0 auto',
@@ -77,8 +77,8 @@ export default function LandingWorkflow({ onAuthClick }) {
         {/* 3 Step Cards Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '24px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+          gap: '20px',
           position: 'relative',
           marginBottom: '48px'
         }}>

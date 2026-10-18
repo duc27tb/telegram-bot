@@ -1,7 +1,8 @@
 import React from 'react';
 import {
   RefreshCw,
-  LogOut
+  LogOut,
+  Menu
 } from 'lucide-react';
 import NotificationBell from '../NotificationBell';
 import ThemeToggle from '../ThemeToggle';
@@ -12,13 +13,14 @@ export default function AdminHeader({
   onRefresh,
   loading,
   onRequestLogout,
-  onSelectTab
+  onSelectTab,
+  onOpenMobileMenu
 }) {
   return (
     <header className="admin-header" style={{
       background: 'var(--bg-sidebar, rgba(11, 15, 25, 0.95))',
       borderBottom: '1px solid var(--border-subtle, rgba(239, 68, 68, 0.25))',
-      padding: '16px 32px',
+      padding: '16px 24px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -28,11 +30,22 @@ export default function AdminHeader({
       backdropFilter: 'blur(16px)',
       transition: 'background-color 0.2s ease, border-color 0.2s ease'
     }}>
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--text-main, #f8fafc)', letterSpacing: '-0.3px' }}>
-            {title}
-          </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+        {/* Hamburger button on mobile / tablet */}
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          className="admin-mobile-menu-btn"
+          aria-label="Open admin navigation menu"
+        >
+          <Menu size={18} />
+        </button>
+
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 className="admin-header-title" style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--text-main, #f8fafc)', letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {title}
+            </h1>
           <span style={{
             fontSize: '10px',
             fontWeight: '900',
@@ -44,12 +57,13 @@ export default function AdminHeader({
           }}>
             CHỦ NỀN TẢNG
           </span>
+          </div>
+          {subtitle && (
+            <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: 'var(--text-muted, #94a3b8)' }}>
+              {subtitle}
+            </p>
+          )}
         </div>
-        {subtitle && (
-          <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: 'var(--text-muted, #94a3b8)' }}>
-            {subtitle}
-          </p>
-        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

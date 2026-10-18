@@ -25,6 +25,7 @@ import ApiGuidePage from './pages/ApiGuidePage';
 import AdminSidebar from './components/admin/AdminSidebar';
 import AdminHeader from './components/admin/AdminHeader';
 import ConfirmModal from './components/common/ConfirmModal';
+import MobileBottomNav from './components/MobileBottomNav';
 import { getAdminSession, logoutAdmin } from './lib/api';
 import { Loader2, LogOut } from 'lucide-react';
 
@@ -40,6 +41,7 @@ function AdminApp() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const refreshFnRef = React.useRef(null);
 
   const [adminUser, setAdminUser] = useState(() => {
@@ -122,6 +124,8 @@ function AdminApp() {
         onSelectTab={setActiveTab}
         onLogout={() => setIsLogoutConfirmOpen(true)}
         userEmail={adminUser?.email || user?.email || 'admin@telepulse.io'}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       {/* 2. Khu vực nội dung Quản Trị Viên */}
@@ -133,9 +137,10 @@ function AdminApp() {
           loading={loading}
           onRequestLogout={() => setIsLogoutConfirmOpen(true)}
           onSelectTab={setActiveTab}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
         />
 
-        <div style={{ flex: 1, padding: '24px 32px', overflowY: 'auto' }}>
+        <div className="admin-content-scroll" style={{ flex: 1, padding: '24px 32px', overflowY: 'auto' }}>
           <AdminDashboardPage
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -281,6 +286,9 @@ function MainApp() {
         />
 
         <TopRightToast />
+
+        {/* Thanh Điều Hướng Đáy Màn Hình Dành Riêng Cho Smartphone (<= 768px) */}
+        <MobileBottomNav onNavigateTab={handleNavigateTab} />
       </div>
     </div>
   );

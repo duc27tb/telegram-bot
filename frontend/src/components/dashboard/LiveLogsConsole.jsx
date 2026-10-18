@@ -8,7 +8,10 @@ import {
   Terminal, 
   Layers,
   Sparkles,
-  Info
+  Info,
+  X,
+  Copy,
+  Check
 } from 'lucide-react';
 import { formatFriendlyLogMessage } from '../../lib/api';
 
@@ -21,6 +24,8 @@ export default function LiveLogsConsole({
 }) {
   const [logFilter, setLogFilter] = useState('all'); // 'all' | 'error' | 'sent'
   const [logSearch, setLogSearch] = useState('');
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [copiedLogText, setCopiedLogText] = useState(false);
 
   const errorLogCount = useMemo(() => {
     return logs.filter(l => l.log_type === 'error' || l.log_type === 'warning' || l.log_type === 'flood_wait').length;
@@ -255,25 +260,35 @@ export default function LiveLogsConsole({
               minute: '2-digit',
               second: '2-digit'
             });
+            const logTimeShort = new Date(log.created_at).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            const friendlyText = formatFriendlyLogMessage(log.message);
 
             return (
               <div
                 key={log.id}
+                onClick={() => setSelectedLog(log)}
+                className="campaign-log-row"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '12px',
-                  padding: '9px 12px',
+                  gap: '10px',
+                  padding: '8px 12px',
                   background: 'rgba(255, 255, 255, 0.02)',
                   borderRadius: '6px',
                   border: '1px solid rgba(255, 255, 255, 0.04)',
-                  fontSize: '12.5px'
+                  fontSize: '12.5px',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease'
                 }}
+                title="Bấm để xem chi tiết bản ghi nhật ký này"
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                   {/* Timestamp */}
-                  <span style={{
+                  <span className="campaign-log-time" style={{
                     fontFamily: 'Consolas, Monaco, monospace',
                     fontSize: '11px',
                     color: 'var(--text-muted)',
@@ -282,7 +297,8 @@ export default function LiveLogsConsole({
                     padding: '2px 6px',
                     borderRadius: '4px'
                   }}>
-                    {logTime}
+                    <span className="log-time-desktop">{logTime}</span>
+                    <span className="log-time-mobile mobile-only" style={{ display: 'none' }}>{logTimeShort}</span>
                   </span>
 
                   {/* Status Badge */}
@@ -301,7 +317,7 @@ export default function LiveLogsConsole({
 
                   {/* Account Badge if available */}
                   {accLabel && (
-                    <span style={{
+                    <span className="campaign-log-account" style={{
                       fontSize: '11px',
                       color: 'var(--primary-light)',
                       background: 'rgba(99, 102, 241, 0.1)',
@@ -315,24 +331,124 @@ export default function LiveLogsConsole({
                   )}
 
                   {/* Message content */}
-                  {(() => {
-                    const friendlyText = formatFriendlyLogMessage(log.message);
-                    return (
-                      <span style={{
-                        color: isError ? '#fca5a5' : isWarning ? '#fde68a' : 'var(--text-secondary)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        minWidth: 0
-                      }} title={friendlyText}>
-                        {friendlyText}
-                      </span>
-                    );
-                  })()}
+                  <span className="campaign-log-message" style={{
+                    color: isError ? '#fca5a5' : isWarning ? '#fde68a' : 'var(--text-secondary)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    minWidth: 0,
+                    flex: 1
+                  }}>
+                    {friendlyText}
+                  </span>
+                </div>
+
+                <div style={{ flexShrink: 0, color: 'var(--text-muted)', opacity: 0.6, display: 'inline-flex', alignItems: 'center' }}>
+                  <Info size={13} />
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* POPUP XEM CHI TIẾT NHẬT KÝ */}
+      {selectedLog && (
+        <div className="modal-overlay" onClick={() => setSelectedLog(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', padding: '22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '15px', color: 'var(--text-main)' }}>
+                <Terminal size={18} color="var(--primary-light)" />
+                <span>Chi Tiết Nhật Ký Rải Tin</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLog(null)}
+                className="btn-icon-subtle"
+                style={{ padding: '4px' }}
+                title="Đóng cửa sổ"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Thời gian:</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text-main)' }}>
+                  {new Date(selectedLog.created_at).toLocaleString('vi-VN')}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Trạng thái:</span>
+                <span style={{
+                  fontWeight: '700',
+                  color: selectedLog.log_type === 'sent' ? '#34d399' : selectedLog.log_type === 'warning' ? '#fbbf24' : '#f87171'
+                }}>
+                  {selectedLog.log_type === 'sent' ? '✅ Gửi thành công' : selectedLog.log_type === 'warning' ? '⚠️ Cảnh báo' : '❌ Thất bại'}
+                </span>
+              </div>
+
+              {selectedLog.account_id && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(0, 0, 0, 0.25)', borderRadius: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Tài khoản bot:</span>
+                  <span style={{ color: '#c7d2fe', fontWeight: '600' }}>
+                    {(() => {
+                      const a = accounts.find(acc => acc.id === selectedLog.account_id);
+                      return a ? (a.account_name || a.phone_number) : selectedLog.account_id;
+                    })()}
+                  </span>
+                </div>
+              )}
+
+              {/* Hộp nội dung / lý do chi tiết */}
+              <div style={{ marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Nội dung nhật ký / Lý do chi tiết:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedLog.message || '');
+                      setCopiedLogText(true);
+                      setTimeout(() => setCopiedLogText(false), 2000);
+                    }}
+                    className="btn-icon-subtle"
+                    title="Sao chép nội dung log"
+                    style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px' }}
+                  >
+                    {copiedLogText ? <Check size={12} color="var(--success)" /> : <Copy size={12} />}
+                    <span>{copiedLogText ? 'Đã sao chép' : 'Sao chép'}</span>
+                  </button>
+                </div>
+                <div style={{
+                  padding: '12px',
+                  background: 'rgba(0, 0, 0, 0.4)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  lineHeight: '1.5',
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  color: selectedLog.log_type === 'error' ? '#fca5a5' : 'var(--text-main)',
+                  fontFamily: 'Consolas, Monaco, monospace'
+                }}>
+                  {formatFriendlyLogMessage(selectedLog.message)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedLog(null)}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '40px', justifyContent: 'center', fontWeight: '700' }}
+            >
+              Đóng Cửa Sổ
+            </button>
+          </div>
         </div>
       )}
     </div>

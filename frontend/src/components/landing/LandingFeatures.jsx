@@ -65,7 +65,7 @@ export default function LandingFeatures() {
 
   return (
     <section id="features" style={{
-      padding: '80px 24px',
+      padding: 'clamp(50px, 8vw, 80px) clamp(16px, 4vw, 24px)',
       position: 'relative'
     }}>
       <div style={{
@@ -73,7 +73,7 @@ export default function LandingFeatures() {
         margin: '0 auto'
       }}>
         {/* Section Header */}
-        <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -93,7 +93,7 @@ export default function LandingFeatures() {
           </div>
 
           <h2 style={{
-            fontSize: 'clamp(28px, 4vw, 40px)',
+            fontSize: 'clamp(24px, 4vw, 40px)',
             fontWeight: '800',
             letterSpacing: '-0.8px',
             color: 'var(--text-main)',
@@ -103,7 +103,7 @@ export default function LandingFeatures() {
           </h2>
 
           <p style={{
-            fontSize: '16px',
+            fontSize: 'clamp(14px, 2vw, 16px)',
             color: 'var(--text-secondary)',
             maxWidth: '680px',
             margin: '0 auto',
@@ -113,11 +113,11 @@ export default function LandingFeatures() {
           </p>
         </div>
 
-        {/* Features 3-Column Grid */}
+        {/* Features Responsive Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-          gap: '24px'
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+          gap: '20px'
         }}>
           {features.map((item, index) => (
             <div
