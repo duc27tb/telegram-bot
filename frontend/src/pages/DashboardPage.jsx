@@ -16,7 +16,7 @@ import {
 } from '../lib/api';
 import SetupGuideCard from '../components/dashboard/SetupGuideCard';
 import CampaignControlCard from '../components/dashboard/CampaignControlCard';
-import LiveLogsConsole from '../components/dashboard/LiveLogsConsole';
+import ActivityLogsSection from '../components/dashboard/ActivityLogsSection';
 
 export default function DashboardPage({ setActiveTab, onOpenAddAccount }) {
   const { user } = useAuth();
@@ -302,31 +302,43 @@ export default function DashboardPage({ setActiveTab, onOpenAddAccount }) {
         /* KHI CHƯA CHẠY / ĐANG TẠM DỪNG:
            - Hiển thị thẻ Hướng Dẫn 3 Bước Khởi Chạy
            - Nút Bắt đầu spam: màu nhạt nếu chưa đủ 3 bước, màu đậm khi cả 3 bước đều viền xanh lá
-           - Phần Nhật Ký tạm thời ẩn đi
+           - Thanh Xem Nhật Ký Hoạt Động: Nhấp vào thanh để mở bảng nhật ký ra xem ngay trên Dashboard!
         */
-        <SetupGuideCard
-          hasActiveAccount={hasActiveAccount}
-          hasActiveGroup={hasActiveGroup}
-          hasActiveTemplate={hasActiveTemplate}
-          activeAccountCount={activeAccounts.length}
-          activeGroupCount={activeGroups.length}
-          activeTemplateCount={activeTemplates.length}
-          onStartCampaign={handleStartCampaign}
-          isToggling={isTogglingCampaign}
-          setActiveTab={setActiveTab}
-          onMissingSteps={(missing) => {
-            showToast({
-              title: 'Chưa đủ điều kiện',
-              message: `Vui lòng hoàn thành: ${missing.join(', ')} (cần viền xanh lá) trước khi bắt đầu!`,
-              type: 'warning'
-            });
-          }}
-        />
+        <>
+          <SetupGuideCard
+            hasActiveAccount={hasActiveAccount}
+            hasActiveGroup={hasActiveGroup}
+            hasActiveTemplate={hasActiveTemplate}
+            activeAccountCount={activeAccounts.length}
+            activeGroupCount={activeGroups.length}
+            activeTemplateCount={activeTemplates.length}
+            onStartCampaign={handleStartCampaign}
+            isToggling={isTogglingCampaign}
+            setActiveTab={setActiveTab}
+            onMissingSteps={(missing) => {
+              showToast({
+                title: 'Chưa đủ điều kiện',
+                message: `Vui lòng hoàn thành: ${missing.join(', ')} (cần viền xanh lá) trước khi bắt đầu!`,
+                type: 'warning'
+              });
+            }}
+          />
+
+          {/* Thanh Xem Nhật Ký Hoạt Động (Nhấp để mở bảng nhật ký ra) */}
+          <ActivityLogsSection
+            logs={logs}
+            accounts={accounts}
+            refreshing={refreshingLogs}
+            onRefresh={() => loadLogs(true)}
+            isRunning={false}
+            setActiveTab={setActiveTab}
+          />
+        </>
       ) : (
         /* KHI ĐANG BẬT CHIẾN DỊCH (isRunning === true):
            - 3 bước hướng dẫn tạm thời bị ẩn đi
            - Hiển thị Trung Tâm Điều Khiển Rải Tin Đa Nick
-           - Hiển thị Nhật Ký Rải Tin Thời Gian Thực
+           - Hiển thị Thanh Nhật Ký & Bảng Nhật Ký Thời Gian Thực (mở sẵn)
         */
         <>
           <CampaignControlCard
@@ -341,12 +353,15 @@ export default function DashboardPage({ setActiveTab, onOpenAddAccount }) {
             setActiveTab={setActiveTab}
           />
 
-          <LiveLogsConsole
+          {/* Thanh Xem Nhật Ký Hoạt Động & Bảng Nhật Ký Thời Gian Thực */}
+          <ActivityLogsSection
             logs={logs}
             accounts={accounts}
             refreshing={refreshingLogs}
             onRefresh={() => loadLogs(true)}
-            autoRefreshActive={isRunning}
+            isRunning={true}
+            defaultExpanded={true}
+            setActiveTab={setActiveTab}
           />
         </>
       )}

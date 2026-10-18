@@ -16,13 +16,18 @@ import {
   Sparkles,
   Bot,
   Info,
-  Copy
+  Copy,
+  FileText,
+  Image as ImageIcon,
+  Download,
+  Film,
+  Maximize2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { supabase } from '../lib/supabase';
-import { replyCustomerMessage } from '../lib/api';
+import { replyCustomerMessage, BACKEND_URL } from '../lib/api';
 
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '😊', '🙏', '🤝', '🚀', '💯'];
 
@@ -43,41 +48,104 @@ export default function LiveChatPage() {
   const [accountsMap, setAccountsMap] = useState({}); // { [account_id]: { phone_number, account_name } }
   const [showConvInfoModal, setShowConvInfoModal] = useState(false);
   const [copiedSenderId, setCopiedSenderId] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null); // { url, fileName }
 
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
 
   const isVip = profile?.subscription_tier === 'VIP';
 
-  // Trợ giúp hiển thị preview văn bản ở danh sách hội thoại
-  const getPreviewText = (text) => {
-    if (!text) return 'Chưa có nội dung';
-    const match = text.match(/^<<<REPLY:(.*?)\|\|([\s\S]*?)>>>\n?([\s\S]*)$/);
-    if (match) {
-      const main = match[3]?.trim();
-      return main ? `↳ ${main}` : '↳ [Trả lời tin nhắn]';
+  // Lắng nghe phím ESC để đóng Lightbox xem ảnh
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setSelectedImage(null);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
+  // Hàm bóc tách gói tin nhắn chứa thẻ Reply và Media
+  const parseMessagePayload = (rawContent) => {
+    if (!rawContent) return { reply: null, media: null, text: '' };
+
+    let content = rawContent;
+    let reply = null;
+    let media = null;
+
+    // 1. Tag Reply: <<<REPLY:Sender||Text>>>
+    const replyMatch = content.match(/^<<<REPLY:(.*?)\|\|([\s\S]*?)>>>\n?/);
+    if (replyMatch) {
+      reply = {
+        sender: replyMatch[1],
+        text: replyMatch[2]
+      };
+      content = content.slice(replyMatch[0].length);
     }
-    return text;
+
+    // 2. Tag Media: <<<MEDIA:type||file_name||file_size||message_id>>>
+    const mediaMatch = content.match(/^<<<MEDIA:(.*?)\|\|(.*?)\|\|(.*?)\|\|(.*?)>>>\n?/);
+    if (mediaMatch) {
+      media = {
+        type: mediaMatch[1], // 'photo' | 'document' | 'video' | 'voice' | 'audio' | 'sticker'
+        fileName: mediaMatch[2],
+        fileSize: Number(mediaMatch[3]) || 0,
+        messageId: mediaMatch[4]
+      };
+      content = content.slice(mediaMatch[0].length);
+    }
+
+    return { reply, media, text: content.trim() };
+  };
+
+  // Trợ giúp định dạng dung lượng file
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes <= 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Trợ giúp hiển thị preview văn bản ở danh sách hội thoại
+  const getPreviewText = (raw) => {
+    if (!raw) return 'Chưa có nội dung';
+    const { reply, media, text } = parseMessagePayload(raw);
+    const prefix = reply ? '↳ ' : '';
+    if (media) {
+      if (media.type === 'photo') return `${prefix}🖼️ [Hình ảnh] ${text}`.trim();
+      if (media.type === 'document') return `${prefix}📄 [Tệp] ${media.fileName || text}`.trim();
+      if (media.type === 'video') return `${prefix}🎥 [Video] ${text}`.trim();
+      if (media.type === 'voice') return `${prefix}🎤 [Tin nhắn thoại]`;
+      if (media.type === 'audio') return `${prefix}🎵 [Âm thanh] ${media.fileName}`;
+      if (media.type === 'sticker') return `${prefix}🎭 [Sticker]`;
+    }
+    return `${prefix}${text || raw}`;
   };
 
   // Trợ giúp trích xuất nội dung tin nhắn thuần túy
   const getCleanMessageText = (content) => {
     if (!content) return '';
-    const match = content.match(/^<<<REPLY:(.*?)\|\|([\s\S]*?)>>>\n?([\s\S]*)$/);
-    return match ? match[3]?.trim() : content;
+    const { text, media } = parseMessagePayload(content);
+    if (media && !text) {
+      if (media.type === 'photo') return '[Hình ảnh]';
+      if (media.type === 'document') return `[Tệp] ${media.fileName}`;
+      return `[${media.type}]`;
+    }
+    return text || content;
   };
 
-  // Trợ giúp render nội dung bubble tin nhắn kèm trích dẫn Reply như Telegram / Messenger
-  const renderMessageContent = (content, isCustomer) => {
+  // Trợ giúp render nội dung bubble tin nhắn kèm trích dẫn Reply & Media từ Telegram
+  const renderMessageContent = (content, isCustomer, currConv) => {
     if (!content) return null;
-    const match = content.match(/^<<<REPLY:(.*?)\|\|([\s\S]*?)>>>\n?([\s\S]*)$/);
-    if (match) {
-      const replySender = match[1];
-      const replyText = match[2];
-      const mainText = match[3];
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Khung trích dẫn tin nhắn cũ y chang Telegram */}
+    const { reply, media, text } = parseMessagePayload(content);
+
+    const mediaUrl = (media && currConv)
+      ? `${BACKEND_URL}/api/chat/media/${currConv.account_id}/${currConv.sender_id}/${media.messageId}`
+      : null;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* Khung trích dẫn tin nhắn cũ nếu có */}
+        {reply && (
           <div style={{
             background: isCustomer ? 'rgba(0, 0, 0, 0.35)' : 'rgba(0, 0, 0, 0.2)',
             borderLeft: isCustomer ? '3px solid #f59e0b' : '3px solid #818cf8',
@@ -92,7 +160,7 @@ export default function LiveChatPage() {
               fontSize: '11px',
               marginBottom: '2px'
             }}>
-              ↳ {replySender}
+              ↳ {reply.sender}
             </div>
             <div style={{
               color: 'rgba(255, 255, 255, 0.75)',
@@ -104,18 +172,90 @@ export default function LiveChatPage() {
               overflow: 'hidden',
               textOverflow: 'ellipsis'
             }}>
-              {replyText}
+              {reply.text}
             </div>
           </div>
+        )}
 
-          {/* Nội dung tin nhắn chính */}
-          <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-            {mainText}
+        {/* 1. Hiển thị Hình ảnh (Photo / Sticker) */}
+        {media && (media.type === 'photo' || media.type === 'sticker') && mediaUrl && (
+          <div
+            className="chat-media-photo-box"
+            onClick={() => setSelectedImage({ url: mediaUrl, fileName: media.fileName })}
+            title="Nhấp để phóng to ảnh nét căng"
+          >
+            <img
+              src={mediaUrl}
+              alt={media.fileName || 'Ảnh'}
+              loading="lazy"
+              className="chat-media-img"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div className="chat-media-fallback" style={{ display: 'none' }}>
+              <ImageIcon size={18} />
+              <span>Ảnh từ Telegram (Bấm để tải lại)</span>
+            </div>
+            <div className="chat-media-hover-overlay">
+              <Maximize2 size={15} />
+            </div>
           </div>
-        </div>
-      );
-    }
-    return <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{content}</div>;
+        )}
+
+        {/* 2. Hiển thị Tệp tài liệu (Document: PDF, Word, Excel, Zip...) */}
+        {media && media.type === 'document' && mediaUrl && (
+          <a
+            href={mediaUrl}
+            download={media.fileName}
+            target="_blank"
+            rel="noreferrer"
+            className="chat-media-doc-card"
+            title={`Tải về máy: ${media.fileName}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="chat-media-doc-icon">
+              <FileText size={20} />
+            </div>
+            <div className="chat-media-doc-info">
+              <span className="chat-media-doc-name">{media.fileName}</span>
+              <span className="chat-media-doc-size">
+                {formatFileSize(media.fileSize) ? `${formatFileSize(media.fileSize)} • ` : ''}Bấm để tải về
+              </span>
+            </div>
+            <div className="chat-media-doc-action">
+              <Download size={16} />
+            </div>
+          </a>
+        )}
+
+        {/* 3. Hiển thị Video */}
+        {media && media.type === 'video' && mediaUrl && (
+          <div style={{ maxWidth: '300px', marginBottom: '6px' }}>
+            <video
+              src={mediaUrl}
+              controls
+              style={{ width: '100%', borderRadius: '8px', maxHeight: '260px', background: '#000' }}
+            />
+          </div>
+        )}
+
+        {/* 4. Hiển thị Audio / Voice */}
+        {media && (media.type === 'voice' || media.type === 'audio') && mediaUrl && (
+          <div style={{ maxWidth: '280px', marginBottom: '6px' }}>
+            <audio src={mediaUrl} controls style={{ width: '100%' }} />
+          </div>
+        )}
+
+        {/* 5. Nội dung chú thích văn bản (Caption) */}
+        {text && (
+          <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+            {text}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Cuộn mượt mà trực tiếp trong container tin nhắn mà KHÔNG làm xô lệch trang cha
@@ -281,8 +421,21 @@ export default function LiveChatPage() {
         .order('updated_at', { ascending: false });
 
       if (data) {
+        // Hàm nhận diện và loại trừ các cuộc hội thoại từ bot / tin nhắn hệ thống
+        const isBotConv = (c) => {
+          const un = (c.sender_username || '').toLowerCase();
+          const name = (c.sender_name || '').toLowerCase();
+          const sid = Number(c.sender_id);
+          if (sid === 777000 || sid === 42777) return true;
+          if (un.endsWith('bot')) return true;
+          if (name.includes('spambot') || name.includes('telegram') || name.includes('[bot]') || name.includes('otp')) return true;
+          return false;
+        };
+
+        const onlyHumanConvs = data.filter(c => !isBotConv(c));
+
         // Nếu đang mở một hội thoại thì giữ unread_count = 0 cho hội thoại đó
-        const normalized = data.map(c => {
+        const normalized = onlyHumanConvs.map(c => {
           if (activeConv && c.id === activeConv.id) {
             return { ...c, unread_count: 0 };
           }
@@ -443,14 +596,15 @@ export default function LiveChatPage() {
     inputRef.current?.focus();
   };
 
-  // Lọc danh sách hội thoại theo ô tìm kiếm
+  // Lọc danh sách hội thoại theo ô tìm kiếm (Tên, Username, ID hoặc nội dung)
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
     const q = searchQuery.toLowerCase();
     return conversations.filter(c => 
       (c.sender_name && c.sender_name.toLowerCase().includes(q)) ||
       (c.sender_username && c.sender_username.toLowerCase().includes(q)) ||
-      (c.last_message && c.last_message.toLowerCase().includes(q))
+      (c.last_message && c.last_message.toLowerCase().includes(q)) ||
+      (String(c.sender_id).includes(q))
     );
   }, [conversations, searchQuery]);
 
@@ -816,7 +970,7 @@ export default function LiveChatPage() {
                         </button>
 
                         <div className={`chat-bubble ${isCustomer ? 'chat-bubble-customer' : 'chat-bubble-admin'}`}>
-                          {renderMessageContent(msg.content, isCustomer)}
+                          {renderMessageContent(msg.content, isCustomer, activeConv)}
                           <div style={{
                             fontSize: '10px',
                             marginTop: '4px',
@@ -1164,6 +1318,49 @@ export default function LiveChatPage() {
             >
               Đóng Cửa Sổ
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Cửa Sổ Lightbox Phóng To Xem Ảnh Nét Căng */}
+      {selectedImage && (
+        <div 
+          className="chat-lightbox-backdrop"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="chat-lightbox-toolbar" onClick={(e) => e.stopPropagation()}>
+            <span className="chat-lightbox-filename">{selectedImage.fileName || 'Hình ảnh từ Telegram'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <a
+                href={selectedImage.url}
+                download={selectedImage.fileName || 'telegram_photo.jpg'}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '12px', padding: '6px 14px', gap: '6px', background: 'rgba(255, 255, 255, 0.1)', color: '#fff' }}
+                title="Tải ảnh gốc về máy"
+              >
+                <Download size={14} />
+                <span>Tải về máy</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setSelectedImage(null)}
+                className="btn-icon-subtle"
+                style={{ width: '34px', height: '34px', color: '#fff', background: 'rgba(255, 255, 255, 0.1)' }}
+                title="Đóng (Phím ESC)"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+
+          <div className="chat-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img 
+              src={selectedImage.url} 
+              alt={selectedImage.fileName || 'Ảnh'} 
+              className="chat-lightbox-img"
+            />
           </div>
         </div>
       )}

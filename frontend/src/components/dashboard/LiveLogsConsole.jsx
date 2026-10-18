@@ -20,7 +20,8 @@ export default function LiveLogsConsole({
   accounts = [],
   refreshing = false,
   onRefresh,
-  autoRefreshActive = true
+  autoRefreshActive = true,
+  isEmbedded = false
 }) {
   const [logFilter, setLogFilter] = useState('all'); // 'all' | 'error' | 'sent'
   const [logSearch, setLogSearch] = useState('');
@@ -53,7 +54,10 @@ export default function LiveLogsConsole({
   }, [logs, logFilter, logSearch]);
 
   return (
-    <div className="card" style={{ padding: '24px', marginBottom: '20px' }}>
+    <div 
+      className={isEmbedded ? "livelogs-embedded" : "card"} 
+      style={isEmbedded ? { padding: '8px 0 0 0', background: 'transparent', border: 'none', boxShadow: 'none' } : { padding: '24px', marginBottom: '20px' }}
+    >
       {/* Header flex */}
       <div style={{
         display: 'flex',

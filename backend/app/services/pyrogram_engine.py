@@ -119,6 +119,8 @@ class PyrogramEngine:
         self.custom_user_delays: Dict[str, int] = {}
         # Circuit Breaker tracking theo phiên gửi tin: { user_id: { chat_id: { "banned_count": int, "forbidden": bool, "last_error": str, "last_error_at": str } } }
         self.circuit_breakers: Dict[str, Dict[int, Dict[str, Any]]] = {}
+        # Cache tin nhắn vừa gửi từ Web UI để tránh ghi đúp khi đồng bộ 2 chiều: set of (target_id, text)
+        self.recently_sent_replies: set = set()
 
     async def get_or_start_client(self, account: Dict[str, Any]) -> Optional[Client]:
         acc_id = str(account["id"])
@@ -156,10 +158,15 @@ class PyrogramEngine:
             "phone": phone
         }
 
-        # Đăng ký listener nhận tin nhắn riêng
+        # Đăng ký listener nhận tin nhắn riêng đến từ người dùng (loại trừ bot)
         @client.on_message(filters.private & ~filters.me)
         async def on_private_message(cli: Client, message: Message):
             await self._handle_incoming_private_message(acc_id, user_id, phone, cli, message)
+
+        # Đăng ký listener đồng bộ tin nhắn đi khi chủ nick gửi trực tiếp từ app Telegram (2 chiều hoàn hảo)
+        @client.on_message(filters.private & filters.me)
+        async def on_outgoing_private_message(cli: Client, message: Message):
+            await self._handle_outgoing_private_message(acc_id, user_id, phone, cli, message)
 
         try:
             await client.start()
@@ -225,10 +232,24 @@ class PyrogramEngine:
             return
 
         sender = message.from_user
-        sender_id = sender.id if sender else 0
-        sender_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip() if sender else "Ẩn danh"
-        sender_username = sender.username if sender else None
-        msg_text = message.text or message.caption or "[Phương tiện / Tệp đính kèm]"
+        if not sender:
+            return
+
+        sender_id = sender.id
+        sender_name = f"{sender.first_name or ''} {sender.last_name or ''}".strip() or "Ẩn danh"
+        sender_username = sender.username
+        msg_text = message.text or message.caption or ""
+
+        # 0. LỌC BỎ BOT & HỆ THỐNG: CHỈ CHO PHÉP NGƯỜI DÙNG THẬT (HUMAN USERS) VÀO LIVE CHAT
+        if getattr(sender, "is_bot", False) or sender_id in [777000, 42777]:
+            print(f"⏩ [LiveChat] Bỏ qua tin nhắn từ Bot / Hệ thống Telegram (ID: {sender_id}, @{sender_username})")
+            return
+        if sender_username and sender_username.lower().endswith("bot"):
+            print(f"⏩ [LiveChat] Bỏ qua tin nhắn từ Bot username: @{sender_username}")
+            return
+        if sender.first_name and ("[bot]" in sender.first_name.lower() or "spambot" in sender.first_name.lower()):
+            print(f"⏩ [LiveChat] Bỏ qua tin nhắn từ Bot tên: {sender.first_name}")
+            return
 
         # Trích xuất thông tin nếu là tin nhắn Reply (trả lời tin nhắn khác)
         reply_quote_tag = ""
@@ -272,8 +293,30 @@ class PyrogramEngine:
                         await message.reply_text(f"❌ Gửi thất bại: {err}")
                 return
 
-        # 2. Lưu tin nhắn của khách vào Supabase (Cuộc hội thoại & Nội dung chat)
-        stored_content = f"{reply_quote_tag}{msg_text}"
+        # 2. Trích xuất thông tin tệp / hình ảnh đính kèm nếu có
+        media_tag = ""
+        if message.photo:
+            media_tag = f"<<<MEDIA:photo||photo_{message.id}.jpg||{message.photo.file_size or 0}||{message.id}>>>\n"
+        elif message.document:
+            fn = message.document.file_name or f"document_{message.id}"
+            media_tag = f"<<<MEDIA:document||{fn}||{message.document.file_size or 0}||{message.id}>>>\n"
+        elif message.video:
+            fn = message.video.file_name or f"video_{message.id}.mp4"
+            media_tag = f"<<<MEDIA:video||{fn}||{message.video.file_size or 0}||{message.id}>>>\n"
+        elif message.voice:
+            media_tag = f"<<<MEDIA:voice||voice_{message.id}.ogg||{message.voice.file_size or 0}||{message.id}>>>\n"
+        elif message.audio:
+            fn = message.audio.file_name or f"audio_{message.id}.mp3"
+            media_tag = f"<<<MEDIA:audio||{fn}||{message.audio.file_size or 0}||{message.id}>>>\n"
+        elif message.sticker:
+            media_tag = f"<<<MEDIA:sticker||sticker_{message.id}.webp||{message.sticker.file_size or 0}||{message.id}>>>\n"
+
+        # Nếu không có text và cũng không có media thì mới dùng fallback
+        if not media_tag and not msg_text:
+            msg_text = "[Phương tiện / Tệp đính kèm]"
+
+        # Lưu tin nhắn của khách vào Supabase (Cuộc hội thoại & Nội dung chat)
+        stored_content = f"{reply_quote_tag}{media_tag}{msg_text}".strip()
         conv_id = self._save_chat_message(user_id, account_id, sender_id, "customer", stored_content, sender_name, sender_username)
         print(f"💾 [LiveChat] Đã lưu cuộc hội thoại (ID: {conv_id}) vào Supabase!")
 
@@ -291,12 +334,64 @@ class PyrogramEngine:
                 quote_line = f"\n↳ Trả lời tin nhắn: \"{r_text}\"" if message.reply_to_message else ""
                 report_text = (
                     f"sđt: {phone} có tin nhắn từ người dùng: {sender_name} (ID: {sender_id}){quote_line}\n"
-                    f"nội dung: {msg_text}"
+                    f"nội dung: {msg_text or '[Hình ảnh / Tệp đính kèm]'}"
                 )
                 await client.send_message(chat_id=admin_username, text=report_text)
                 print(f"📲 [LiveChat] Đã forward tin nhắn tới @{admin_username}")
             except Exception as e:
                 print(f"⚠️ Lỗi forward tin nhắn tới @{admin_username}: {e}")
+
+    async def _handle_outgoing_private_message(self, account_id: str, user_id: str, phone: str, client: Client, message: Message):
+        """Đồng bộ tin nhắn đi: Khi chủ tài khoản nhắn tin riêng từ app Telegram trên điện thoại/máy tính,
+        lưu vào chat_messages với sender_type='admin' để hiển thị đầy đủ 2 chiều trên Web UI."""
+        sb = get_supabase()
+        if not sb or not message.chat:
+            return
+
+        target_chat = message.chat
+        target_id = target_chat.id
+
+        # 0. Bỏ qua nếu nhắn cho bot hoặc telegram service notification
+        if target_id in [777000, 42777] or getattr(target_chat, "is_bot", False):
+            return
+        if target_chat.username and target_chat.username.lower().endswith("bot"):
+            return
+
+        # Bỏ qua nếu nhắn cho chính mình (Saved Messages)
+        try:
+            me = await client.get_me()
+            if me and me.id == target_id:
+                return
+        except Exception:
+            pass
+
+        msg_text = message.text or message.caption or ""
+
+        # Trích xuất thông tin media nếu gửi từ app Telegram
+        media_tag = ""
+        if message.photo:
+            media_tag = f"<<<MEDIA:photo||photo_{message.id}.jpg||{message.photo.file_size or 0}||{message.id}>>>\n"
+        elif message.document:
+            fn = message.document.file_name or f"document_{message.id}"
+            media_tag = f"<<<MEDIA:document||{fn}||{message.document.file_size or 0}||{message.id}>>>\n"
+        elif message.video:
+            fn = message.video.file_name or f"video_{message.id}.mp4"
+            media_tag = f"<<<MEDIA:video||{fn}||{message.video.file_size or 0}||{message.id}>>>\n"
+
+        stored_content = f"{media_tag}{msg_text}".strip() or "[Phương tiện / Tệp đính kèm]"
+
+        # Tránh ghi đúp tin nhắn nếu vừa được gửi từ Web UI
+        cache_key = (target_id, msg_text.strip())
+        if cache_key in self.recently_sent_replies:
+            self.recently_sent_replies.discard(cache_key)
+            return
+
+        target_name = f"{target_chat.first_name or ''} {target_chat.last_name or ''}".strip() or getattr(target_chat, "title", None) or "Khách hàng"
+        target_username = target_chat.username
+
+        # Lưu vào cuộc hội thoại và bảng chat_messages với sender_type = 'admin'
+        self._save_chat_message(user_id, account_id, target_id, "admin", stored_content, target_name, target_username)
+        print(f"📤 [LiveChat Sync] Đã đồng bộ tin nhắn đi từ app Telegram tới khách hàng (ID: {target_id}): {msg_text[:60]}")
 
     def _save_chat_message(self, user_id: str, account_id: str, sender_id: int, sender_type: str, content: str, sender_name: str = None, sender_username: str = None) -> Optional[str]:
         sb = get_supabase()
@@ -351,11 +446,86 @@ class PyrogramEngine:
             return {"success": False, "error": "Không thể kết nối với tài khoản Telegram"}
 
         try:
+            # Đánh dấu cache để tránh ghi đúp khi on_outgoing_private_message bắt được
+            self.recently_sent_replies.add((customer_sender_id, text.strip()))
             await client.send_message(chat_id=customer_sender_id, text=text)
             self._save_chat_message(user_id, account_id, customer_sender_id, "admin", text)
             return {"success": True, "message": "Đã gửi phản hồi thành công"}
         except Exception as e:
+            self.recently_sent_replies.discard((customer_sender_id, text.strip()))
             return {"success": False, "error": f"Lỗi gửi tin: {str(e)}"}
+
+    async def download_media_stream(self, account_id: str, chat_id: int, message_id: int) -> Dict[str, Any]:
+        """Tải media on-demand từ Telegram MTProto và trả về binary stream cho Web UI xem trực tiếp"""
+        sb = get_supabase()
+        if not sb:
+            return {"success": False, "error": "Chưa kết nối CSDL"}
+
+        acc_res = sb.table("telegram_accounts").select("*").eq("id", account_id).execute()
+        if not acc_res.data:
+            return {"success": False, "error": "Không tìm thấy tài khoản Telegram này"}
+
+        account = acc_res.data[0]
+        client = await self.get_or_start_client(account)
+        if not client:
+            return {"success": False, "error": "Tài khoản Telegram hiện chưa online. Vui lòng kiểm tra lại trạng thái tài khoản!"}
+
+        try:
+            msg = await client.get_messages(chat_id=chat_id, message_ids=message_id)
+            if not msg:
+                return {"success": False, "error": "Tin nhắn không tồn tại hoặc đã bị xóa trên Telegram"}
+
+            mime_type = "application/octet-stream"
+            filename = f"media_{message_id}"
+            disposition = "inline"
+
+            if msg.photo:
+                mime_type = "image/jpeg"
+                filename = f"photo_{message_id}.jpg"
+                disposition = "inline"
+            elif msg.document:
+                mime_type = msg.document.mime_type or "application/octet-stream"
+                filename = msg.document.file_name or f"document_{message_id}"
+                disposition = "inline" if mime_type.startswith("image/") or mime_type == "application/pdf" else "attachment"
+            elif msg.video:
+                mime_type = msg.video.mime_type or "video/mp4"
+                filename = msg.video.file_name or f"video_{message_id}.mp4"
+                disposition = "inline"
+            elif msg.voice:
+                mime_type = msg.voice.mime_type or "audio/ogg"
+                filename = f"voice_{message_id}.ogg"
+                disposition = "inline"
+            elif msg.audio:
+                mime_type = msg.audio.mime_type or "audio/mpeg"
+                filename = msg.audio.file_name or f"audio_{message_id}.mp3"
+                disposition = "inline"
+            elif msg.sticker:
+                mime_type = "image/webp"
+                filename = f"sticker_{message_id}.webp"
+                disposition = "inline"
+            else:
+                return {"success": False, "error": "Tin nhắn này không chứa hình ảnh hay tệp đính kèm"}
+
+            bio = await client.download_media(msg, in_memory=True)
+            if not bio:
+                return {"success": False, "error": "Không thể tải tệp từ máy chủ Telegram"}
+
+            if hasattr(bio, "getvalue"):
+                data_bytes = bio.getvalue()
+            else:
+                bio.seek(0)
+                data_bytes = bio.read()
+
+            return {
+                "success": True,
+                "bytes": data_bytes,
+                "mime_type": mime_type,
+                "filename": filename,
+                "disposition": disposition
+            }
+        except Exception as e:
+            print(f"⚠️ [Media Stream] Lỗi tải media ({account_id}, msg {message_id}): {e}")
+            return {"success": False, "error": f"Lỗi tải từ Telegram: {str(e)}"}
 
     def _purge_old_bot_logs(self, user_id: str):
         """Tự động xóa nhật ký bot_logs quá 1 tiếng (TTL = 1 hour) để hệ thống luôn nhẹ và tải tức thì"""

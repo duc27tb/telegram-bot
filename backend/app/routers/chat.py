@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from app.services.pyrogram_engine import bot_engine
 from app.database import get_supabase
@@ -31,3 +31,20 @@ async def reply_customer(body: ReplyMessageBody):
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Lỗi gửi phản hồi"))
     return result
+
+@router.get("/media/{account_id}/{chat_id}/{message_id}")
+async def get_chat_media(account_id: str, chat_id: int, message_id: int):
+    """Stream dữ liệu hình ảnh hoặc tài liệu từ Telegram MTProto theo yêu cầu (On-Demand)"""
+    result = await bot_engine.download_media_stream(account_id, chat_id, message_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Không thể tải media"))
+
+    headers = {
+        "Content-Disposition": f'{result["disposition"]}; filename="{result["filename"]}"',
+        "Cache-Control": "public, max-age=86400"
+    }
+    return Response(
+        content=result["bytes"],
+        media_type=result["mime_type"],
+        headers=headers
+    )
