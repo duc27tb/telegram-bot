@@ -48,56 +48,58 @@ def format_telegram_error_vi(err_str: str) -> str:
     if not err_str:
         return "Lỗi gửi tin không xác định"
 
+    err_upper = err_str.upper()
+
     # 1. Bị cấm gửi tin trong channel/supergroup (do @SpamBot hoặc Admin ban)
-    if "USER_BANNED_IN_CHANNEL" in err_str:
+    if "USER_BANNED_IN_CHANNEL" in err_upper:
         return "Tài khoản bị cấm chat trong nhóm này (hoặc đang bị @SpamBot chặn)"
 
     # 2. Nhóm khóa chat, chỉ cho phép admin gửi
-    if "CHAT_WRITE_FORBIDDEN" in err_str:
+    if "CHAT_WRITE_FORBIDDEN" in err_upper:
         return "Nhóm đã khóa chat (chỉ Admin mới có quyền gửi tin)"
 
     # 3. Giới hạn tần suất FloodWait
-    if "FLOOD_WAIT" in err_str or "FloodWait" in err_str:
+    if "FLOOD_WAIT" in err_upper or "FLOODWAIT" in err_upper:
         m = re.search(r"(\d+)", err_str)
         sec = m.group(1) if m else "một lát"
         return f"Bị Telegram tạm giới hạn tần suất gửi tin (cần nghỉ {sec}s)"
 
     # 4. Nhóm bật chế độ gửi chậm (Slowmode)
-    if "SLOWMODE_WAIT" in err_str:
+    if "SLOWMODE_WAIT" in err_upper:
         m = re.search(r"(\d+)", err_str)
         sec = m.group(1) if m else ""
         return f"Nhóm đang bật chế độ gửi chậm Slowmode (phải đợi {sec}s)"
 
     # 5. Nhóm kín hoặc link hết hạn
-    if "CHANNEL_PRIVATE" in err_str or "INVITE_HASH_EXPIRED" in err_str:
+    if "CHANNEL_PRIVATE" in err_upper or "INVITE_HASH_EXPIRED" in err_upper:
         return "Nhóm kín hoặc link hết hạn, nick chưa có quyền vào nhóm"
 
     # 6. Nhóm không tồn tại hoặc nick đã rời khỏi nhóm
-    if "PEER_ID_INVALID" in err_str or "CHAT_INVALID" in err_str or "CHANNEL_INVALID" in err_str:
-        return "Nhóm không tồn tại hoặc tài khoản đã rời khỏi nhóm"
+    if "PEER_ID_INVALID" in err_upper or "CHAT_INVALID" in err_upper or "CHANNEL_INVALID" in err_upper:
+        return "Nhóm không tồn tại, đã giải tán hoặc tài khoản không còn trong nhóm"
 
     # 7. Tài khoản bị hạn chế
-    if "USER_RESTRICTED" in err_str or "CHAT_RESTRICTED" in err_str:
+    if "USER_RESTRICTED" in err_upper or "CHAT_RESTRICTED" in err_upper:
         return "Tài khoản đang bị Telegram hạn chế quyền gửi tin"
 
     # 8. Nội dung tin quá dài
-    if "MSG_TOO_LONG" in err_str or "MESSAGE_TOO_LONG" in err_str:
+    if "MSG_TOO_LONG" in err_upper or "MESSAGE_TOO_LONG" in err_upper:
         return "Nội dung tin nhắn vượt quá độ dài tối đa của Telegram"
 
     # 9. Tài khoản bị vô hiệu hóa
-    if "USER_DEACTIVATED" in err_str:
+    if "USER_DEACTIVATED" in err_upper:
         return "Tài khoản Telegram đã bị khóa hoặc vô hiệu hóa"
 
     # 10. Trùng phiên
-    if "AUTH_KEY_DUPLICATED" in err_str:
+    if "AUTH_KEY_DUPLICATED" in err_upper:
         return "Trùng phiên đăng nhập (vui lòng bấm Đăng Nhập Lại)"
 
     # 11. Hết hạn phiên
-    if "AUTH_KEY_UNREGISTERED" in err_str or "SESSION_REVOKED" in err_str:
+    if "AUTH_KEY_UNREGISTERED" in err_upper or "SESSION_REVOKED" in err_upper:
         return "Phiên đăng nhập đã hết hạn trên Telegram"
 
     # 12. Bị người nhận chặn
-    if "INPUT_USER_DEACTIVATED" in err_str or "USER_IS_BLOCKED" in err_str:
+    if "INPUT_USER_DEACTIVATED" in err_upper or "USER_IS_BLOCKED" in err_upper:
         return "Người nhận hoặc nhóm đã chặn tài khoản này"
 
     # Lược bỏ các từ khóa kỹ thuật Telegram says: [400 ...] caused by "..."
@@ -1079,18 +1081,19 @@ class PyrogramEngine:
                             user_cb = self.circuit_breakers.setdefault(user_id, {})
                             curr_stat = user_cb.get(chat_id, {"banned_count": 0, "forbidden": False})
 
-                            if "USER_BANNED_IN_CHANNEL" in err_str:
+                            err_str_upper = err_str.upper()
+                            if "USER_BANNED_IN_CHANNEL" in err_str_upper:
                                 curr_stat["banned_count"] = curr_stat.get("banned_count", 0) + 1
                                 curr_stat["last_error"] = err_vi
                                 curr_stat["last_error_at"] = now_iso
                                 user_cb[chat_id] = curr_stat
                                 print(f"⚠️ [Circuit Breaker] Nhóm '{g_title}' ghi nhận cấm chat lần {curr_stat['banned_count']}/2 (Chu kỳ 3 sẽ tự động bỏ qua)")
-                            elif "CHAT_WRITE_FORBIDDEN" in err_str:
+                            elif "CHAT_WRITE_FORBIDDEN" in err_str_upper or "PEER_ID_INVALID" in err_str_upper or "CHAT_INVALID" in err_str_upper or "CHANNEL_INVALID" in err_str_upper:
                                 curr_stat["forbidden"] = True
                                 curr_stat["last_error"] = err_vi
                                 curr_stat["last_error_at"] = now_iso
                                 user_cb[chat_id] = curr_stat
-                                print(f"⚠️ [Circuit Breaker] Nhóm '{g_title}' khóa chat (Chu kỳ 2 sẽ tự động bỏ qua)")
+                                print(f"⚠️ [Circuit Breaker] Nhóm '{g_title}' khóa chat hoặc không tồn tại/đã giải tán (Chu kỳ sau sẽ tự động bỏ qua)")
                             else:
                                 curr_stat["last_error"] = err_vi
                                 curr_stat["last_error_at"] = now_iso
