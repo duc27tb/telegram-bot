@@ -275,9 +275,9 @@ class PyrogramEngine:
         from app.services.wallet_store import LocalWalletStore
         user_tier = LocalWalletStore.get_subscription_tier(user_id)
 
-        # 1. Kiểm tra nếu tin nhắn là từ Admin reply ngược lại cú pháp ** (ĐẶC QUYỀN VIP)
-        if user_tier == "VIP" and sender_username and admin_username and sender_username.lower() == admin_username:
-            if msg_text.startswith("**") and message.reply_to_message:
+        # 1. Kiểm tra nếu tin nhắn là từ Admin (Tránh lưu admin thành khách hàng mới gây rối Live Chat)
+        if sender_username and admin_username and sender_username.lower() == admin_username:
+            if user_tier == "VIP" and (msg_text.startswith("**") or msg_text.startswith("//")) and message.reply_to_message:
                 reply_orig = message.reply_to_message.text or message.reply_to_message.caption or ""
                 match = re.search(r"\(ID:\s*(\d+)\)", reply_orig)
                 if match:
@@ -291,7 +291,8 @@ class PyrogramEngine:
                         print(f"✅ [LiveChat] Đã chuyển tiếp phản hồi từ Admin tới ID {target_id}")
                     except Exception as err:
                         await message.reply_text(f"❌ Gửi thất bại: {err}")
-                return
+            # Dù là lệnh reply hay tin nhắn thường từ admin cá nhân tới bot, tuyệt đối KHÔNG lưu admin vào danh sách khách hàng
+            return
 
         # 2. Trích xuất thông tin tệp / hình ảnh đính kèm nếu có
         media_tag = ""
@@ -303,6 +304,11 @@ class PyrogramEngine:
         elif message.video:
             fn = message.video.file_name or f"video_{message.id}.mp4"
             media_tag = f"<<<MEDIA:video||{fn}||{message.video.file_size or 0}||{message.id}>>>\n"
+        elif message.animation:
+            fn = message.animation.file_name or f"animation_{message.id}.mp4"
+            media_tag = f"<<<MEDIA:video||{fn}||{message.animation.file_size or 0}||{message.id}>>>\n"
+        elif message.video_note:
+            media_tag = f"<<<MEDIA:video||video_note_{message.id}.mp4||{message.video_note.file_size or 0}||{message.id}>>>\n"
         elif message.voice:
             media_tag = f"<<<MEDIA:voice||voice_{message.id}.ogg||{message.voice.file_size or 0}||{message.id}>>>\n"
         elif message.audio:
@@ -313,7 +319,10 @@ class PyrogramEngine:
 
         # Nếu không có text và cũng không có media thì mới dùng fallback
         if not media_tag and not msg_text:
-            msg_text = "[Phương tiện / Tệp đính kèm]"
+            if message.contact or message.location or message.poll:
+                msg_text = "[Thông tin chia sẻ: Danh thiếp / Vị trí / Khảo sát]"
+            else:
+                msg_text = "[Phương tiện / Tệp đính kèm]"
 
         # Lưu tin nhắn của khách vào Supabase (Cuộc hội thoại & Nội dung chat)
         stored_content = f"{reply_quote_tag}{media_tag}{msg_text}".strip()
@@ -332,11 +341,23 @@ class PyrogramEngine:
         if user_tier == "VIP" and forward_enabled and admin_username and not is_sender_admin:
             try:
                 quote_line = f"\n↳ Trả lời tin nhắn: \"{r_text}\"" if message.reply_to_message else ""
-                report_text = (
-                    f"sđt: {phone} có tin nhắn từ người dùng: {sender_name} (ID: {sender_id}){quote_line}\n"
-                    f"nội dung: {msg_text or '[Hình ảnh / Tệp đính kèm]'}"
-                )
-                await client.send_message(chat_id=admin_username, text=report_text)
+                caption_hdr = f"sđt: {phone} có tin nhắn từ {sender_name} (ID: {sender_id}){quote_line}"
+
+                if message.photo:
+                    caption = f"{caption_hdr}\n{msg_text}".strip()
+                    await client.send_photo(chat_id=admin_username, photo=message.photo.file_id, caption=caption[:1024])
+                elif message.document:
+                    caption = f"{caption_hdr}\n{msg_text}".strip()
+                    await client.send_document(chat_id=admin_username, document=message.document.file_id, caption=caption[:1024])
+                elif message.video:
+                    caption = f"{caption_hdr}\n{msg_text}".strip()
+                    await client.send_video(chat_id=admin_username, video=message.video.file_id, caption=caption[:1024])
+                elif message.voice:
+                    await client.send_voice(chat_id=admin_username, voice=message.voice.file_id, caption=caption_hdr[:1024])
+                else:
+                    report_text = f"{caption_hdr}\nnội dung: {msg_text or '[Tin nhắn trống]'}"
+                    await client.send_message(chat_id=admin_username, text=report_text)
+
                 print(f"📲 [LiveChat] Đã forward tin nhắn tới @{admin_username}")
             except Exception as e:
                 print(f"⚠️ Lỗi forward tin nhắn tới @{admin_username}: {e}")
@@ -356,6 +377,13 @@ class PyrogramEngine:
             return
         if target_chat.username and target_chat.username.lower().endswith("bot"):
             return
+
+        # Bỏ qua nếu nhắn cho tài khoản admin (Tin thông báo hệ thống chuyển tiếp, không phải khách hàng)
+        profile_res = sb.table("profiles").select("telegram_admin_username").eq("id", user_id).execute()
+        if profile_res.data:
+            admin_un = (profile_res.data[0].get("telegram_admin_username") or "").strip().lower().replace("@", "")
+            if admin_un and target_chat.username and target_chat.username.lower() == admin_un:
+                return
 
         # Bỏ qua nếu nhắn cho chính mình (Saved Messages)
         try:
@@ -377,8 +405,25 @@ class PyrogramEngine:
         elif message.video:
             fn = message.video.file_name or f"video_{message.id}.mp4"
             media_tag = f"<<<MEDIA:video||{fn}||{message.video.file_size or 0}||{message.id}>>>\n"
+        elif message.animation:
+            fn = message.animation.file_name or f"animation_{message.id}.mp4"
+            media_tag = f"<<<MEDIA:video||{fn}||{message.animation.file_size or 0}||{message.id}>>>\n"
+        elif message.video_note:
+            media_tag = f"<<<MEDIA:video||video_note_{message.id}.mp4||{message.video_note.file_size or 0}||{message.id}>>>\n"
+        elif message.voice:
+            media_tag = f"<<<MEDIA:voice||voice_{message.id}.ogg||{message.voice.file_size or 0}||{message.id}>>>\n"
+        elif message.audio:
+            fn = message.audio.file_name or f"audio_{message.id}.mp3"
+            media_tag = f"<<<MEDIA:audio||{fn}||{message.audio.file_size or 0}||{message.id}>>>\n"
+        elif message.sticker:
+            media_tag = f"<<<MEDIA:sticker||sticker_{message.id}.webp||{message.sticker.file_size or 0}||{message.id}>>>\n"
 
-        stored_content = f"{media_tag}{msg_text}".strip() or "[Phương tiện / Tệp đính kèm]"
+        stored_content = f"{media_tag}{msg_text}".strip()
+        if not stored_content:
+            if message.contact or message.location or message.poll:
+                stored_content = "[Thông tin chia sẻ: Danh thiếp / Vị trí / Khảo sát]"
+            else:
+                stored_content = "[Phương tiện / Tệp đính kèm]"
 
         # Tránh ghi đúp tin nhắn nếu vừa được gửi từ Web UI
         cache_key = (target_id, msg_text.strip())
@@ -514,6 +559,14 @@ class PyrogramEngine:
                 mime_type = msg.video.mime_type or "video/mp4"
                 filename = msg.video.file_name or f"video_{message_id}.mp4"
                 disposition = "inline"
+            elif msg.animation:
+                mime_type = msg.animation.mime_type or "video/mp4"
+                filename = msg.animation.file_name or f"animation_{message_id}.mp4"
+                disposition = "inline"
+            elif msg.video_note:
+                mime_type = "video/mp4"
+                filename = f"video_note_{message_id}.mp4"
+                disposition = "inline"
             elif msg.voice:
                 mime_type = msg.voice.mime_type or "audio/ogg"
                 filename = f"voice_{message_id}.ogg"
@@ -585,6 +638,12 @@ class PyrogramEngine:
         except Exception:
             pass
 
+        # Tự động dọn dẹp các dòng fallback cũ nếu có
+        try:
+            sb.table("chat_messages").delete().eq("conversation_id", conv_id).eq("content", "[Phương tiện / Tệp đính kèm]").execute()
+        except Exception:
+            pass
+
         existing = sb.table("chat_messages").select("content, sender_type").eq("conversation_id", conv_id).execute().data or []
         existing_set = {(m["content"].strip(), m["sender_type"]) for m in existing}
 
@@ -612,6 +671,18 @@ class PyrogramEngine:
             elif m.video:
                 fn = m.video.file_name or f"video_{m.id}.mp4"
                 media_tag = f"<<<MEDIA:video||{fn}||{m.video.file_size or 0}||{m.id}>>>\n"
+            elif m.animation:
+                fn = m.animation.file_name or f"animation_{m.id}.mp4"
+                media_tag = f"<<<MEDIA:video||{fn}||{m.animation.file_size or 0}||{m.id}>>>\n"
+            elif m.video_note:
+                media_tag = f"<<<MEDIA:video||video_note_{m.id}.mp4||{m.video_note.file_size or 0}||{m.id}>>>\n"
+            elif m.voice:
+                media_tag = f"<<<MEDIA:voice||voice_{m.id}.ogg||{m.voice.file_size or 0}||{m.id}>>>\n"
+            elif m.audio:
+                fn = m.audio.file_name or f"audio_{m.id}.mp3"
+                media_tag = f"<<<MEDIA:audio||{fn}||{m.audio.file_size or 0}||{m.id}>>>\n"
+            elif m.sticker:
+                media_tag = f"<<<MEDIA:sticker||sticker_{m.id}.webp||{m.sticker.file_size or 0}||{m.id}>>>\n"
 
             reply_tag = ""
             if m.reply_to_message:

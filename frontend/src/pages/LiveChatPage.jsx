@@ -26,6 +26,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
+import { useNotification } from '../context/NotificationContext';
 import { supabase } from '../lib/supabase';
 import { replyCustomerMessage, BACKEND_URL } from '../lib/api';
 
@@ -33,6 +34,7 @@ const QUICK_EMOJIS = ['👍', '❤️', '🔥', '😊', '🙏', '🤝', '🚀', 
 
 export default function LiveChatPage() {
   const { user, profile } = useAuth();
+  const { showToast } = useNotification();
   const { fetchUnreadChatCount, setActiveChatConvId } = useChat();
   const navigate = useNavigate();
 
@@ -49,6 +51,7 @@ export default function LiveChatPage() {
   const [showConvInfoModal, setShowConvInfoModal] = useState(false);
   const [copiedSenderId, setCopiedSenderId] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // { url, fileName }
+  const [syncing, setSyncing] = useState(false);
 
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
@@ -118,7 +121,8 @@ export default function LiveChatPage() {
       if (media.type === 'audio') return `${prefix}🎵 [Âm thanh] ${media.fileName}`;
       if (media.type === 'sticker') return `${prefix}🎭 [Sticker]`;
     }
-    return `${prefix}${text || raw}`;
+    const cleanText = (text || raw).replace(/\[Phương tiện \/ Tệp đính kèm\]/g, '🖼️ [Hình ảnh]');
+    return `${prefix}${cleanText}`;
   };
 
   // Trợ giúp trích xuất nội dung tin nhắn thuần túy
@@ -251,7 +255,31 @@ export default function LiveChatPage() {
         {/* 5. Nội dung chú thích văn bản (Caption) */}
         {text && (
           <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-            {text}
+            {text.includes('[Phương tiện / Tệp đính kèm]') ? (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSyncTelegramHistory();
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  background: 'rgba(99, 102, 241, 0.16)',
+                  border: '1px solid rgba(99, 102, 241, 0.35)',
+                  color: 'var(--primary-light)',
+                  fontSize: '12px',
+                  fontWeight: '600'
+                }}
+                title="Nhấp để đồng bộ và hiển thị hình ảnh từ Telegram"
+              >
+                <ImageIcon size={14} />
+                <span>📷 [Hình ảnh / Tệp - Bấm tải ảnh]</span>
+              </span>
+            ) : text}
           </div>
         )}
       </div>
@@ -464,6 +492,15 @@ export default function LiveChatPage() {
       if (data) {
         setMessages(data);
         setTimeout(() => scrollToBottom(!isAuto), 50);
+
+        // Nếu phát hiện tin nhắn cũ bị lưu literal '[Phương tiện / Tệp đính kèm]', tự động đồng bộ ngầm để kéo ảnh xịn về
+        const hasLegacyFallback = data.some(m => m.content && m.content.includes('[Phương tiện / Tệp đính kèm]'));
+        if (hasLegacyFallback && !isAuto) {
+          const targetConv = (activeConv && activeConv.id === convId) ? activeConv : conversations.find(c => c.id === convId);
+          if (targetConv) {
+            handleSyncTelegramHistory(targetConv, true);
+          }
+        }
       }
     } catch (e) {
       console.error('Lỗi lấy tin nhắn:', e);
@@ -483,6 +520,35 @@ export default function LiveChatPage() {
       ]);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  // Đồng bộ lịch sử tin nhắn & hình ảnh từ Telegram MTProto
+  const handleSyncTelegramHistory = async (convToSync = null, isSilent = false) => {
+    const target = convToSync || activeConv;
+    if (!target || syncing) return;
+    if (!isSilent) setSyncing(true);
+    const minSpin = new Promise(r => setTimeout(r, 600));
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/chat/sync/${target.account_id}/${target.sender_id}`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      await minSpin;
+      if (data?.success) {
+        if (!isSilent) {
+          showToast(data.added > 0 ? `Đã đồng bộ ${data.added} tin nhắn & hình ảnh mới từ Telegram!` : 'Dữ liệu trò chuyện đã đồng bộ mới nhất!', 'success');
+        }
+        await fetchMessages(target.id, true);
+        await fetchConversations();
+      } else if (!isSilent) {
+        showToast(data?.error || 'Không thể đồng bộ từ Telegram', 'error');
+      }
+    } catch (err) {
+      console.error('Lỗi sync chat:', err);
+      if (!isSilent) showToast('Lỗi kết nối khi đồng bộ từ Telegram', 'error');
+    } finally {
+      if (!isSilent) setSyncing(false);
     }
   };
 
@@ -920,28 +986,51 @@ export default function LiveChatPage() {
                     </div>
                   </div>
 
-                  {/* Icon Info Xem Chi Tiết Trên Mobile & Desktop */}
-                  <button
-                    type="button"
-                    onClick={() => setShowConvInfoModal(true)}
-                    className="btn-icon-subtle chat-header-info-btn"
-                    style={{
-                      width: '34px',
-                      height: '34px',
-                      borderRadius: '8px',
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid var(--border-subtle)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--primary-light)',
-                      cursor: 'pointer',
-                      flexShrink: 0
-                    }}
-                    title="Bấm để xem chi tiết Telegram ID, số bot và gói cước"
-                  >
-                    <Info size={17} />
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    {/* Nút Đồng Bộ Tin Nhắn & Ảnh Từ Telegram */}
+                    <button
+                      type="button"
+                      onClick={() => handleSyncTelegramHistory()}
+                      disabled={syncing}
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        gap: '6px',
+                        background: 'rgba(99, 102, 241, 0.12)',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        color: 'var(--primary-light)'
+                      }}
+                      title="Đồng bộ lại toàn bộ tin nhắn 2 chiều & hình ảnh từ Telegram"
+                    >
+                      <RefreshCw size={13} className={syncing ? 'spin' : ''} />
+                      <span className="chat-sync-text">Đồng bộ</span>
+                    </button>
+
+                    {/* Icon Info Xem Chi Tiết Trên Mobile & Desktop */}
+                    <button
+                      type="button"
+                      onClick={() => setShowConvInfoModal(true)}
+                      className="btn-icon-subtle chat-header-info-btn"
+                      style={{
+                        width: '34px',
+                        height: '34px',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid var(--border-subtle)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary-light)',
+                        cursor: 'pointer',
+                        flexShrink: 0
+                      }}
+                      title="Bấm để xem chi tiết Telegram ID, số bot và gói cước"
+                    >
+                      <Info size={17} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
