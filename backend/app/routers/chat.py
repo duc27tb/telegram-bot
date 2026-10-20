@@ -48,3 +48,12 @@ async def get_chat_media(account_id: str, chat_id: int, message_id: int):
         media_type=result["mime_type"],
         headers=headers
     )
+
+@router.post("/sync/{account_id}/{chat_id}")
+async def sync_chat_messages(account_id: str, chat_id: int):
+    """Đồng bộ lịch sử trò chuyện 2 chiều từ Telegram MTProto theo yêu cầu"""
+    result = await bot_engine.sync_chat_history(account_id, chat_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Lỗi đồng bộ lịch sử chat"))
+    return result
+

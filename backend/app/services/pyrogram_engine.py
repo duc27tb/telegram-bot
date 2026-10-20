@@ -550,6 +550,107 @@ class PyrogramEngine:
             print(f"⚠️ [Media Stream] Lỗi tải media ({account_id}, msg {message_id}): {e}")
             return {"success": False, "error": f"Lỗi tải từ Telegram: {str(e)}"}
 
+    async def sync_chat_history(self, account_id: str, chat_id: int, limit: int = 40) -> Dict[str, Any]:
+        """Đồng bộ lịch sử trò chuyện 2 chiều từ Telegram MTProto vào CSDL Supabase"""
+        sb = get_supabase()
+        if not sb:
+            return {"success": False, "error": "Chưa kết nối CSDL"}
+
+        acc_res = sb.table("telegram_accounts").select("*").eq("id", account_id).execute()
+        if not acc_res.data:
+            return {"success": False, "error": "Không tìm thấy tài khoản Telegram"}
+
+        account = acc_res.data[0]
+        user_id = account.get("user_id")
+        client = await self.get_or_start_client(account)
+        if not client:
+            return {"success": False, "error": "Tài khoản Telegram hiện chưa online"}
+
+        conv_res = sb.table("customer_conversations").select("*").eq("account_id", account_id).eq("sender_id", chat_id).execute()
+        if not conv_res.data:
+            return {"success": False, "error": "Không tìm thấy cuộc hội thoại này"}
+
+        conv = conv_res.data[0]
+        conv_id = conv["id"]
+
+        target_peer = chat_id
+        try:
+            try:
+                await client.get_chat(target_peer)
+            except Exception:
+                target_un = (conv.get("sender_username") or "").replace("@", "").strip()
+                if target_un:
+                    u = await client.get_users(target_un)
+                    target_peer = u.id
+        except Exception:
+            pass
+
+        existing = sb.table("chat_messages").select("content, sender_type").eq("conversation_id", conv_id).execute().data or []
+        existing_set = {(m["content"].strip(), m["sender_type"]) for m in existing}
+
+        all_msgs = []
+        try:
+            async for m in client.get_chat_history(target_peer, limit=limit):
+                all_msgs.append(m)
+        except Exception as e:
+            return {"success": False, "error": f"Không thể lấy tin nhắn từ Telegram: {e}"}
+
+        all_msgs.reverse()
+        added_count = 0
+        last_text = ""
+
+        for m in all_msgs:
+            is_me = m.outgoing or getattr(m.from_user, "is_self", False)
+            s_type = "admin" if is_me else "customer"
+
+            media_tag = ""
+            if m.photo:
+                media_tag = f"<<<MEDIA:photo||photo_{m.id}.jpg||{m.photo.file_size or 0}||{m.id}>>>\n"
+            elif m.document:
+                fn = m.document.file_name or f"document_{m.id}"
+                media_tag = f"<<<MEDIA:document||{fn}||{m.document.file_size or 0}||{m.id}>>>\n"
+            elif m.video:
+                fn = m.video.file_name or f"video_{m.id}.mp4"
+                media_tag = f"<<<MEDIA:video||{fn}||{m.video.file_size or 0}||{m.id}>>>\n"
+
+            reply_tag = ""
+            if m.reply_to_message:
+                r_msg = m.reply_to_message
+                r_sender = r_msg.from_user
+                r_sender_name = f"{r_sender.first_name or ''} {r_sender.last_name or ''}".strip() if r_sender else "Tin nhắn trước"
+                r_text = (r_msg.text or r_msg.caption or "[Tệp/Ảnh]").strip()[:100]
+                reply_tag = f"<<<REPLY:{r_sender_name}||{r_text}>>>\n"
+
+            msg_text = (m.text or m.caption or "").strip()
+            if not media_tag and not msg_text:
+                continue
+
+            stored_content = f"{reply_tag}{media_tag}{msg_text}".strip()
+            last_text = stored_content
+
+            if (stored_content, s_type) not in existing_set and not any(stored_content in e[0] for e in existing_set):
+                created_ts = m.date.isoformat() if hasattr(m.date, "isoformat") else "now()"
+                try:
+                    sb.table("chat_messages").insert({
+                        "conversation_id": conv_id,
+                        "user_id": user_id,
+                        "sender_type": s_type,
+                        "content": stored_content,
+                        "created_at": created_ts
+                    }).execute()
+                    existing_set.add((stored_content, s_type))
+                    added_count += 1
+                except Exception as err:
+                    print(f"Error inserting synced msg: {err}")
+
+        if last_text:
+            sb.table("customer_conversations").update({
+                "last_message": last_text,
+                "updated_at": "now()"
+            }).eq("id", conv_id).execute()
+
+        return {"success": True, "added": added_count, "total_scanned": len(all_msgs)}
+
     def _purge_old_bot_logs(self, user_id: str):
         """Tự động xóa nhật ký bot_logs quá 1 tiếng (TTL = 1 hour) để hệ thống luôn nhẹ và tải tức thì"""
         try:
