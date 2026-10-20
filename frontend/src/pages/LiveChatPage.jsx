@@ -52,6 +52,7 @@ export default function LiveChatPage() {
   const [copiedSenderId, setCopiedSenderId] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // { url, fileName }
   const [syncing, setSyncing] = useState(false);
+  const syncingConvsRef = useRef(new Set());
 
   const messagesContainerRef = useRef(null);
   const inputRef = useRef(null);
@@ -494,7 +495,11 @@ export default function LiveChatPage() {
   const handleSyncTelegramHistory = async (convToSync = null, isSilent = false) => {
     const target = convToSync || activeConv;
     if (!target) return;
-    if (!isSilent && syncing) return;
+    const syncKey = `${target.account_id}_${target.sender_id}`;
+    if (syncingConvsRef.current.has(syncKey)) {
+      return; // Đã có tiến trình đồng bộ cho cuộc hội thoại này, không gửi đúp
+    }
+    syncingConvsRef.current.add(syncKey);
     if (!isSilent) setSyncing(true);
     const minSpin = isSilent ? Promise.resolve() : new Promise(r => setTimeout(r, 600));
     try {
@@ -518,12 +523,14 @@ export default function LiveChatPage() {
       console.error('Lỗi sync chat:', err);
       if (!isSilent) showToast('Lỗi kết nối khi đồng bộ từ Telegram', 'error');
     } finally {
+      syncingConvsRef.current.delete(syncKey);
       if (!isSilent) setSyncing(false);
     }
   };
 
   // 4. Chọn một cuộc hội thoại và đánh dấu đã đọc
   const handleSelectConv = (conv) => {
+    if (activeConv?.id === conv.id) return;
     setActiveConv(conv);
     if (conv.unread_count > 0) {
       // Bỏ in đậm và xóa chấm tròn unread ngay trên giao diện
