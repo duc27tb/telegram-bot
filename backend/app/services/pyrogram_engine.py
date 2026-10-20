@@ -891,11 +891,44 @@ class PyrogramEngine:
                     await asyncio.sleep(30)
                     continue
 
-                cycle_start_time = time.time()
+                # 4. Kiểm tra Checkpoint điểm dừng chân chu kỳ (Thuật toán Resume & Cycle TTL)
+                from app.services.campaign_checkpoint import CampaignCheckpointService
+                now_ts = time.time()
+                cp = CampaignCheckpointService.get_checkpoint(user_id)
+                sent_chat_ids: set = set()
+
+                if cp:
+                    saved_start_time = cp.get("cycle_start_time", now_ts)
+                    saved_sent_ids = set(cp.get("sent_chat_ids", []))
+                    time_passed = now_ts - saved_start_time
+
+                    # Nếu thời gian từ lúc gửi nhóm 1 đã vượt quá chu kỳ cài đặt (ví dụ 2 tiếng):
+                    # Tự động reset và bắt đầu chu kỳ mới toanh từ nhóm 1!
+                    if time_passed >= cycle_delay:
+                        print(f"🔄 [Campaign] Chu kỳ cũ đã hết hạn ({int(time_passed)}s >= {cycle_delay}s). Bắt đầu vòng mới từ nhóm 1.")
+                        cycle_start_time = now_ts
+                        sent_chat_ids = set()
+                        CampaignCheckpointService.clear_checkpoint(user_id)
+                    else:
+                        # Chu kỳ cũ vẫn còn hiệu lực (chưa đủ 2 tiếng) -> Tiếp tục gửi từ nhóm dở dang!
+                        cycle_start_time = saved_start_time
+                        sent_chat_ids = saved_sent_ids
+                        remaining_count = len([g for g in all_groups if g["chat_id"] not in sent_chat_ids])
+                        print(f"⏩ [Campaign Resume] Tiếp tục chu kỳ dở dang: Đã gửi {len(sent_chat_ids)}/{len(all_groups)} nhóm ({int(time_passed)}s / {cycle_delay}s). Đang gửi tiếp {remaining_count} nhóm còn lại...")
+                        sb.table("bot_logs").insert({
+                            "user_id": user_id,
+                            "account_id": None,
+                            "log_type": "info",
+                            "message": f"Tiếp tục chu kỳ dở dang: Đã gửi {len(sent_chat_ids)}/{len(all_groups)} nhóm trước đó ({int(time_passed)}s / {cycle_delay}s). Đang gửi tiếp {remaining_count} nhóm còn lại..."
+                        }).execute()
+                else:
+                    cycle_start_time = now_ts
+                    sent_chat_ids = set()
+
                 cycle_sent_count = 0
                 cycle_error_count = 0
 
-                # 4. Phân phối nhóm & Chạy từng tài khoản Telegram
+                # 5. Phân phối nhóm & Chạy từng tài khoản Telegram
                 for acc_idx, acc in enumerate(accounts):
                     acc_id = acc["id"]
                     phone = acc.get("phone_number", "Unknown")
@@ -929,6 +962,10 @@ class PyrogramEngine:
                         chat_id = grp["chat_id"]
                         g_title = grp.get("group_title") or str(chat_id)
 
+                        # Bỏ qua nhóm đã gửi thành công trong chu kỳ hiện tại (Resume checkpoint)
+                        if chat_id in sent_chat_ids:
+                            continue
+
                         # Thuật toán Circuit Breaker: Tự động bỏ qua nhóm không khả dụng
                         user_cb = self.circuit_breakers.setdefault(user_id, {})
                         grp_cb = user_cb.get(chat_id, {})
@@ -950,6 +987,9 @@ class PyrogramEngine:
 
                             await client.send_message(chat_id=chat_id, text=final_message)
                             cycle_sent_count += 1
+                            sent_chat_ids.add(chat_id)
+                            # Cập nhật checkpoint ngay khi gửi thành công để không bao giờ bị mất dấu
+                            CampaignCheckpointService.mark_group_sent(user_id, chat_id, cycle_start_time, cycle_delay)
 
                             # Khi gửi thành công: Xóa trạng thái lỗi khỏi Circuit Breaker
                             if user_id in self.circuit_breakers and chat_id in self.circuit_breakers[user_id]:
@@ -1099,7 +1139,11 @@ class PyrogramEngine:
                 except Exception:
                     pass
 
-                # Chờ đến chu kỳ phát tin tiếp theo
+                # Sau khi hoàn tất rải tin toàn bộ danh sách nhóm trong chu kỳ:
+                # Xóa checkpoint để chu kỳ kế tiếp bắt đầu lại từ nhóm 1
+                CampaignCheckpointService.clear_checkpoint(user_id)
+
+                # Chờ đến chu kỳ phát tin tiếp theo (tính từ thời điểm gửi nhóm đầu tiên của chu kỳ)
                 elapsed = time.time() - cycle_start_time
                 if elapsed < cycle_delay:
                     await asyncio.sleep(cycle_delay - elapsed)

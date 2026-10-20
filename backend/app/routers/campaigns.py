@@ -54,6 +54,12 @@ async def stop_campaign(body: UserCampaignAction):
     result = await bot_engine.stop_campaign_for_user(body.user_id)
     return result
 
+@router.post("/reset-cycle")
+async def reset_campaign_cycle(body: UserCampaignAction):
+    from app.services.campaign_checkpoint import CampaignCheckpointService
+    CampaignCheckpointService.clear_checkpoint(body.user_id)
+    return {"success": True, "message": "Đã reset chu kỳ về nhóm đầu tiên thành công!"}
+
 @router.get("/status/{user_id}")
 async def get_campaign_status(user_id: str):
     sb = get_supabase()
@@ -70,9 +76,29 @@ async def get_campaign_status(user_id: str):
         except Exception as e:
             print(f"[get_campaign_status] Error auto-resuming campaign: {e}")
 
+    import time
+    from app.services.campaign_checkpoint import CampaignCheckpointService
+    cp = CampaignCheckpointService.get_checkpoint(user_id)
+    checkpoint_info = None
+    if cp:
+        now_ts = time.time()
+        start_t = cp.get("cycle_start_time", now_ts)
+        sent_ids = cp.get("sent_chat_ids", [])
+        c_delay = cp.get("cycle_delay", 1200)
+        passed = now_ts - start_t
+        checkpoint_info = {
+            "cycle_start_time": start_t,
+            "sent_count": len(sent_ids),
+            "sent_chat_ids": sent_ids,
+            "time_passed_seconds": int(passed),
+            "cycle_delay_seconds": c_delay,
+            "is_expired": passed >= c_delay
+        }
+
     return {
         "settings": camp.data[0] if camp.data else None,
-        "is_task_running": is_active
+        "is_task_running": is_active,
+        "checkpoint": checkpoint_info
     }
 
 @router.put("/settings")
