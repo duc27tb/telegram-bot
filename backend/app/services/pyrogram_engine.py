@@ -968,6 +968,14 @@ class PyrogramEngine:
                         if chat_id in sent_chat_ids:
                             continue
 
+                        # 0. Bỏ qua nhóm rác / nhóm chat riêng dưới 5 thành viên (Tránh spam nhóm 1 người, nhóm trung gian cũ)
+                        from app.services.group_link_cache import GroupLinkCache
+                        cached_meta = GroupLinkCache.get_link(chat_id)
+                        members_count = grp.get("members_count") or (cached_meta.get("members_count") if cached_meta else None)
+                        if members_count is not None and 0 < members_count < 5:
+                            print(f"⏩ [Filter Low-Member] Tự động bỏ qua nhóm '{g_title}' ({chat_id}) vì chỉ có {members_count} thành viên (< 5 người).")
+                            continue
+
                         # Thuật toán Circuit Breaker: Tự động bỏ qua nhóm không khả dụng
                         user_cb = self.circuit_breakers.setdefault(user_id, {})
                         grp_cb = user_cb.get(chat_id, {})

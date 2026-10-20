@@ -919,11 +919,12 @@ export default function GroupsPage() {
                               })()}
                               {membersCount > 0 ? (
                                 <span 
-                                  className="group-members-badge" 
-                                  title={`${membersCount.toLocaleString('vi-VN')} thành viên`}
+                                  className={`group-members-badge ${membersCount < 5 ? 'low-members' : ''}`}
+                                  title={membersCount < 5 ? `${membersCount} thành viên (Dưới 5 người - Tự động bỏ qua)` : `${membersCount.toLocaleString('vi-VN')} thành viên`}
                                 >
                                   <Users size={11} />
                                   <span>{membersCount.toLocaleString('vi-VN')} TV</span>
+                                  {membersCount < 5 && <span style={{ fontSize: '10px', opacity: 0.85 }}>• Bỏ qua</span>}
                                 </span>
                               ) : (
                                 <span 
