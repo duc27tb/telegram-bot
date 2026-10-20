@@ -1013,6 +1013,29 @@ class PyrogramEngine:
                             err_vi = format_telegram_error_vi(err_str)
                             now_iso = datetime.now(timezone.utc).isoformat()
 
+                            # Kiểm tra nếu là lỗi phiên nghiêm trọng (Trùng phiên, phiên bị hủy, nick bị ban)
+                            is_fatal_session = any(k in err_str for k in [
+                                "AUTH_KEY_DUPLICATED", "AUTH_KEY_UNREGISTERED", "SESSION_REVOKED", "USER_DEACTIVATED", "SESSION_EXPIRED"
+                            ])
+                            if is_fatal_session:
+                                self.last_errors[acc_id] = err_str
+                                try:
+                                    sb.table("telegram_accounts").update({
+                                        "status": "error",
+                                        "last_active": now_iso
+                                    }).eq("id", acc_id).execute()
+                                except Exception:
+                                    pass
+                                await self.stop_client(acc_id)
+                                sb.table("bot_logs").insert({
+                                    "user_id": user_id,
+                                    "account_id": acc_id,
+                                    "log_type": "error",
+                                    "message": f"[{phone}] Phiên đăng nhập bị ngắt ({err_vi}). Trạng thái tài khoản đã chuyển sang Báo Lỗi, vui lòng bấm 'Đăng Nhập Lại'."
+                                }).execute()
+                                # Dừng gửi tiếp các nhóm khác của tài khoản này
+                                break
+
                             user_cb = self.circuit_breakers.setdefault(user_id, {})
                             curr_stat = user_cb.get(chat_id, {"banned_count": 0, "forbidden": False})
 
