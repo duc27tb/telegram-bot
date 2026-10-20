@@ -160,13 +160,13 @@ class PyrogramEngine:
             "phone": phone
         }
 
-        # Đăng ký listener nhận tin nhắn riêng đến từ người dùng (loại trừ bot)
-        @client.on_message(filters.private & ~filters.me)
+        # Đăng ký listener nhận tin nhắn riêng đến từ khách hàng
+        @client.on_message(filters.private & filters.incoming)
         async def on_private_message(cli: Client, message: Message):
             await self._handle_incoming_private_message(acc_id, user_id, phone, cli, message)
 
-        # Đăng ký listener đồng bộ tin nhắn đi khi chủ nick gửi trực tiếp từ app Telegram (2 chiều hoàn hảo)
-        @client.on_message(filters.private & filters.me)
+        # Đăng ký listener đồng bộ tin nhắn đi khi chủ nick gửi trực tiếp từ điện thoại / app Telegram (2 chiều hoàn hảo)
+        @client.on_message(filters.private & filters.outgoing)
         async def on_outgoing_private_message(cli: Client, message: Message):
             await self._handle_outgoing_private_message(acc_id, user_id, phone, cli, message)
 
@@ -397,6 +397,17 @@ class PyrogramEngine:
 
         msg_text = message.text or message.caption or ""
 
+        # Trích xuất thông tin nếu là tin nhắn Reply từ app Telegram trên điện thoại
+        reply_quote_tag = ""
+        if message.reply_to_message:
+            r_msg = message.reply_to_message
+            r_sender = r_msg.from_user
+            r_sender_name = f"{r_sender.first_name or ''} {r_sender.last_name or ''}".strip() if r_sender else (getattr(r_msg.sender_chat, 'title', None) or "Tin nhắn trước")
+            r_text = (r_msg.text or r_msg.caption or "[Hình ảnh/Tệp tin]").strip()
+            if len(r_text) > 160:
+                r_text = r_text[:157] + "..."
+            reply_quote_tag = f"<<<REPLY:{r_sender_name}||{r_text}>>>\n"
+
         # Trích xuất thông tin media nếu gửi từ app Telegram
         media_tag = ""
         if message.photo:
@@ -420,7 +431,7 @@ class PyrogramEngine:
         elif message.sticker:
             media_tag = f"<<<MEDIA:sticker||sticker_{message.id}.webp||{message.sticker.file_size or 0}||{message.id}>>>\n"
 
-        stored_content = f"{media_tag}{msg_text}".strip()
+        stored_content = f"{reply_quote_tag}{media_tag}{msg_text}".strip()
         if not stored_content:
             if message.contact or message.location or message.poll:
                 stored_content = "[Thông tin chia sẻ: Danh thiếp / Vị trí / Khảo sát]"
@@ -646,8 +657,9 @@ class PyrogramEngine:
         except Exception:
             pass
 
+        from collections import Counter
         existing = sb.table("chat_messages").select("content, sender_type").eq("conversation_id", conv_id).execute().data or []
-        existing_set = {(m["content"].strip(), m["sender_type"]) for m in existing}
+        existing_counts = Counter((m["content"].strip(), m["sender_type"]) for m in existing)
 
         all_msgs = []
         try:
@@ -701,20 +713,24 @@ class PyrogramEngine:
             stored_content = f"{reply_tag}{media_tag}{msg_text}".strip()
             last_text = stored_content
 
-            if (stored_content, s_type) not in existing_set and not any(stored_content in e[0] for e in existing_set):
-                created_ts = m.date.isoformat() if hasattr(m.date, "isoformat") else "now()"
-                try:
-                    sb.table("chat_messages").insert({
-                        "conversation_id": conv_id,
-                        "user_id": user_id,
-                        "sender_type": s_type,
-                        "content": stored_content,
-                        "created_at": created_ts
-                    }).execute()
-                    existing_set.add((stored_content, s_type))
-                    added_count += 1
-                except Exception as err:
-                    print(f"Error inserting synced msg: {err}")
+            # Bỏ qua nếu tin nhắn này đã tồn tại trong CSDL (chính xác từng tin nhắn, không loại nhầm từ ngắn)
+            msg_key = (stored_content, s_type)
+            if existing_counts[msg_key] > 0:
+                existing_counts[msg_key] -= 1
+                continue
+
+            created_ts = m.date.isoformat() if hasattr(m.date, "isoformat") else "now()"
+            try:
+                sb.table("chat_messages").insert({
+                    "conversation_id": conv_id,
+                    "user_id": user_id,
+                    "sender_type": s_type,
+                    "content": stored_content,
+                    "created_at": created_ts
+                }).execute()
+                added_count += 1
+            except Exception as err:
+                print(f"Error inserting synced msg: {err}")
 
         if last_text:
             sb.table("customer_conversations").update({

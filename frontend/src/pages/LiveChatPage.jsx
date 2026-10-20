@@ -421,24 +421,7 @@ export default function LiveChatPage() {
     }
   };
 
-  // 2. Chọn một cuộc hội thoại và đánh dấu đã đọc
-  const handleSelectConv = (conv) => {
-    setActiveConv(conv);
-    if (conv.unread_count > 0) {
-      // Bỏ in đậm và xóa chấm tròn unread ngay trên giao diện
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
-      // Cập nhật ngầm vào Supabase
-      supabase
-        .from('customer_conversations')
-        .update({ unread_count: 0 })
-        .eq('id', conv.id)
-        .then(() => {
-          if (fetchUnreadChatCount) fetchUnreadChatCount();
-        });
-    }
-  };
-
-  // 3. Tải danh sách hội thoại
+  // 1. Tải danh sách hội thoại
   const fetchConversations = async () => {
     if (!user) return;
     try {
@@ -481,7 +464,7 @@ export default function LiveChatPage() {
     }
   };
 
-  // 4. Tải tin nhắn của hội thoại đang chọn
+  // 2. Tải tin nhắn của hội thoại đang chọn
   const fetchMessages = async (convId, isAuto = false) => {
     try {
       const { data } = await supabase
@@ -507,7 +490,58 @@ export default function LiveChatPage() {
     }
   };
 
-  // Làm mới thủ công có hiệu ứng xoay .spin mượt mà
+  // 3. Đồng bộ lịch sử tin nhắn & hình ảnh từ Telegram MTProto
+  const handleSyncTelegramHistory = async (convToSync = null, isSilent = false) => {
+    const target = convToSync || activeConv;
+    if (!target) return;
+    if (!isSilent && syncing) return;
+    if (!isSilent) setSyncing(true);
+    const minSpin = isSilent ? Promise.resolve() : new Promise(r => setTimeout(r, 600));
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/chat/sync/${target.account_id}/${target.sender_id}`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      await minSpin;
+      if (data?.success) {
+        if (!isSilent) {
+          showToast(data.added > 0 ? `Đã đồng bộ ${data.added} tin nhắn & hình ảnh mới từ Telegram!` : 'Dữ liệu trò chuyện đã đồng bộ mới nhất!', 'success');
+        }
+        if (data.added > 0 || !isSilent) {
+          await fetchMessages(target.id, true);
+          await fetchConversations();
+        }
+      } else if (!isSilent) {
+        showToast(data?.error || 'Không thể đồng bộ từ Telegram', 'error');
+      }
+    } catch (err) {
+      console.error('Lỗi sync chat:', err);
+      if (!isSilent) showToast('Lỗi kết nối khi đồng bộ từ Telegram', 'error');
+    } finally {
+      if (!isSilent) setSyncing(false);
+    }
+  };
+
+  // 4. Chọn một cuộc hội thoại và đánh dấu đã đọc
+  const handleSelectConv = (conv) => {
+    setActiveConv(conv);
+    if (conv.unread_count > 0) {
+      // Bỏ in đậm và xóa chấm tròn unread ngay trên giao diện
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
+      // Cập nhật ngầm vào Supabase
+      supabase
+        .from('customer_conversations')
+        .update({ unread_count: 0 })
+        .eq('id', conv.id)
+        .then(() => {
+          if (fetchUnreadChatCount) fetchUnreadChatCount();
+        });
+    }
+    // Tự động đồng bộ ngầm 2 chiều từ Telegram khi mở hội thoại để đảm bảo hiển thị đầy đủ tin nhắn vừa rep bằng điện thoại
+    handleSyncTelegramHistory(conv, true);
+  };
+
+  // 5. Làm mới thủ công có hiệu ứng xoay .spin mượt mà
   const handleManualRefresh = async () => {
     setRefreshing(true);
     const minSpin = new Promise(r => setTimeout(r, 600));
@@ -520,35 +554,6 @@ export default function LiveChatPage() {
       ]);
     } finally {
       setRefreshing(false);
-    }
-  };
-
-  // Đồng bộ lịch sử tin nhắn & hình ảnh từ Telegram MTProto
-  const handleSyncTelegramHistory = async (convToSync = null, isSilent = false) => {
-    const target = convToSync || activeConv;
-    if (!target || syncing) return;
-    if (!isSilent) setSyncing(true);
-    const minSpin = new Promise(r => setTimeout(r, 600));
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/chat/sync/${target.account_id}/${target.sender_id}`, {
-        method: 'POST'
-      });
-      const data = await res.json();
-      await minSpin;
-      if (data?.success) {
-        if (!isSilent) {
-          showToast(data.added > 0 ? `Đã đồng bộ ${data.added} tin nhắn & hình ảnh mới từ Telegram!` : 'Dữ liệu trò chuyện đã đồng bộ mới nhất!', 'success');
-        }
-        await fetchMessages(target.id, true);
-        await fetchConversations();
-      } else if (!isSilent) {
-        showToast(data?.error || 'Không thể đồng bộ từ Telegram', 'error');
-      }
-    } catch (err) {
-      console.error('Lỗi sync chat:', err);
-      if (!isSilent) showToast('Lỗi kết nối khi đồng bộ từ Telegram', 'error');
-    } finally {
-      if (!isSilent) setSyncing(false);
     }
   };
 
