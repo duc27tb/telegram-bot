@@ -281,12 +281,12 @@ class LocalWalletStore:
         return sub.get("tier", "FREE").upper()
 
     @classmethod
-    def set_subscription(cls, user_id: str, tier: str, expires_at: Optional[str] = None):
+    def set_subscription(cls, user_id: str, tier: str, expires_at: Optional[str] = None, plan_key: Optional[str] = None):
         """Cập nhật gói cước cho người dùng vào Supabase và CloudKV"""
         clean_tier = tier.upper().strip()
+        resolved_plan_key = (plan_key or ("free" if clean_tier == "FREE" else "vip")).lower().strip()
         _invalidate_cached(user_id)
 
-        # 1. Cập nhật Supabase profiles (nếu đã có cột)
         sb = get_supabase()
         if sb and user_id:
             try:
@@ -298,14 +298,15 @@ class LocalWalletStore:
             except Exception:
                 pass
 
-        # 2. Tự động lưu lên CloudKV (Supabase Storage) + local backup
         data = _load_data()
         if "subscriptions" not in data:
             data["subscriptions"] = {}
-        data["subscriptions"][user_id] = {
+        sub_obj = {
             "tier": clean_tier,
+            "plan_key": resolved_plan_key,
             "expires_at": expires_at,
             "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
+        data["subscriptions"][user_id] = sub_obj
         _save_data(data)
-        _set_cached(f"sub_{user_id}", {"tier": clean_tier, "expires_at": expires_at})
+        _set_cached(f"sub_{user_id}", sub_obj)

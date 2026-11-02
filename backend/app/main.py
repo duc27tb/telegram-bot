@@ -7,10 +7,12 @@ except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import accounts, campaigns, chat, wallet, activities, groups, admin, guide
 from app.services.pyrogram_engine import bot_engine
+from app.services.user_auth import verify_supabase_jwt
 from app.config import settings
 
 @asynccontextmanager
@@ -78,6 +80,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware xác thực Supabase JWT cho các API người dùng (BƯỚC 4 - Auth Guard)
+@app.middleware("http")
+async def supabase_jwt_auth_guard(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    path = request.url.path
+    # Bỏ qua các route công khai, webhook PayOS và cổng Admin riêng
+    public_prefixes = (
+        "/docs", "/openapi.json", "/api/wallet/webhook", "/api/wallet/plans",
+        "/api/admin", "/api/guide"
+    )
+    if path == "/" or any(path.startswith(p) for p in public_prefixes):
+        return await call_next(request)
+
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if token:
+            jwt_info = verify_supabase_jwt(token)
+            if not jwt_info:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Phiên đăng nhập không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại!"}
+                )
+            request.state.auth_user = jwt_info
+
+            # Chống giả mạo user_id trên URL nếu không phải Admin
+            if jwt_info.get("role") != "admin":
+                auth_uid = jwt_info.get("user_id")
+                q_uid = request.query_params.get("user_id")
+                if q_uid and auth_uid and q_uid != auth_uid:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "Từ chối truy cập: Bạn không có quyền thao tác trên dữ liệu của tài khoản khác!"}
+                    )
+
+    return await call_next(request)
 
 # Gắn các router API
 app.include_router(accounts.router)

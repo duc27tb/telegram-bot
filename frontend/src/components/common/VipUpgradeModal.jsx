@@ -7,10 +7,22 @@ export default function VipUpgradeModal({
   onConfirm,
   vipPrice = 199000,
   durationDays = 30,
+  planName = 'VIP Pro Marketing (Cloud)',
+  planFeatures = null,
   isLoading = false,
   isRenewal = false
 }) {
   if (!isOpen) return null;
+
+  const isLifetime = durationDays >= 3650;
+  const defaultFeatures = [
+    'Kết nối tối đa 10 tài khoản Telegram chạy song song',
+    'Hộp thư Live Chat 2 chiều nhận và trả lời tức thì',
+    'Chuyển tiếp báo cáo lead về Telegram cá nhân của Admin',
+    'Soạn tin nhắn Spintax biến thiên không giới hạn',
+    'Tự động né tránh FloodWait chống block tài khoản'
+  ];
+  const featuresToRender = Array.isArray(planFeatures) && planFeatures.length > 0 ? planFeatures : defaultFeatures;
 
   return (
     <div className="modal-overlay" onClick={isLoading ? undefined : onClose} style={{ zIndex: 130 }}>
@@ -46,10 +58,10 @@ export default function VipUpgradeModal({
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--text-main, #f8fafc)' }}>
-                {isRenewal ? 'Xác Nhận Gia Hạn VIP Pro' : 'Xác Nhận Mua Gói VIP Pro'}
+                {isRenewal ? 'Xác Nhận Gia Hạn Gói Cước' : 'Xác Nhận Kích Hoạt Gói Cước'}
               </h3>
               <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#fbbf24', fontWeight: '600' }}>
-                Gói Tiếp Thị Đỉnh Cao • Thời hạn {durationDays} ngày
+                {isLifetime ? 'Bản Quyền Vĩnh Viễn • Trọn Đời' : `Gói Tiếp Thị Tự Động • Thời hạn ${durationDays} ngày`}
               </p>
             </div>
           </div>
@@ -64,7 +76,7 @@ export default function VipUpgradeModal({
           </button>
         </div>
 
-        {/* Thông tin gói cước (Không tính toán số dư) */}
+        {/* Thông tin gói cước */}
         <div style={{
           background: 'rgba(255, 255, 255, 0.03)',
           border: '1px solid rgba(245, 158, 11, 0.3)',
@@ -73,48 +85,35 @@ export default function VipUpgradeModal({
           marginBottom: '20px',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          gap: '12px'
         }}>
           <div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Gói dịch vụ đăng ký:</div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: '#fbbf24', marginTop: '2px' }}>
-              VIP Pro Marketing Enterprise
+            <div style={{ fontSize: '15px', fontWeight: '800', color: '#fbbf24', marginTop: '2px' }}>
+              {planName}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Chi phí:</div>
             <div style={{ fontSize: '18px', fontWeight: '900', color: '#f59e0b', fontFamily: 'monospace', marginTop: '2px' }}>
-              {vipPrice.toLocaleString('vi-VN')} ₫
+              {Number(vipPrice || 0).toLocaleString('vi-VN')} ₫
             </div>
           </div>
         </div>
 
-        {/* Danh sách quyền lợi VIP kích hoạt */}
+        {/* Danh sách quyền lợi kích hoạt */}
         <div style={{ marginBottom: '26px' }}>
           <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Toàn bộ đặc quyền được kích hoạt ngay:
           </div>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)' }}>
-              <Check size={16} color="#fbbf24" style={{ flexShrink: 0 }} />
-              <span>Kết nối tối đa <strong>10 tài khoản Telegram</strong> chạy song song</span>
-            </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)' }}>
-              <Check size={16} color="#fbbf24" style={{ flexShrink: 0 }} />
-              <span>Hộp thư <strong>Live Chat 2 chiều</strong> nhận và trả lời tức thì</span>
-            </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)' }}>
-              <Check size={16} color="#fbbf24" style={{ flexShrink: 0 }} />
-              <span><strong>Chuyển tiếp báo cáo lead</strong> về Telegram cá nhân của Admin</span>
-            </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)' }}>
-              <Check size={16} color="#fbbf24" style={{ flexShrink: 0 }} />
-              <span>Soạn tin nhắn <strong>Spintax biến thiên</strong> không giới hạn</span>
-            </li>
-            <li style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)' }}>
-              <Check size={16} color="#fbbf24" style={{ flexShrink: 0 }} />
-              <span>Tự động né tránh <strong>FloodWait</strong> chống block tài khoản</span>
-            </li>
+            {featuresToRender.map((feat, idx) => (
+              <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-main)' }}>
+                <Check size={16} color="#fbbf24" style={{ flexShrink: 0 }} />
+                <span>{feat}</span>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -157,7 +156,7 @@ export default function VipUpgradeModal({
             ) : (
               <>
                 <Crown size={16} />
-                <span>{isRenewal ? `Xác Nhận Gia Hạn (${vipPrice.toLocaleString('vi-VN')} ₫)` : `Xác Nhận Mua Gói (${vipPrice.toLocaleString('vi-VN')} ₫)`}</span>
+                <span>{isRenewal ? `Gia Hạn (${Number(vipPrice || 0).toLocaleString('vi-VN')} ₫)` : `Xác Nhận Mua (${Number(vipPrice || 0).toLocaleString('vi-VN')} ₫)`}</span>
               </>
             )}
           </button>

@@ -12,7 +12,8 @@
       "1 Mẫu tin nhắn chiến dịch duy nhất",
       "Không hỗ trợ Live Chat 2 chiều",
       "Không hỗ trợ chuyển tiếp về Telegram cá nhân"
-    ]
+    ],
+    "key": "free"
   },
   "vip": {
     "id": "plan_vip_pro",
@@ -28,6 +29,39 @@
       "Live Chat 2 chiều nhận & trả lời tức thì",
       "Chuyển tiếp báo cáo & lead về Telegram cá nhân",
       "Tự động chống khoá FloodWait thông minh"
+    ],
+    "key": "vip"
+  },
+  "mobile_auto": {
+    "id": "plan_mobile_auto",
+    "key": "mobile_auto",
+    "name": "Tự Động Toàn Diện Bằng Điện Thoại",
+    "price": 299000,
+    "duration_days": 30,
+    "max_accounts": 20,
+    "daily_broadcast_limit": 999999,
+    "features": [
+      "Tự động hóa 100% mọi tác vụ ngay trên Điện Thoại",
+      "20 Tài khoản Telegram chạy ngầm 24/7 khi tắt màn hình",
+      "Đồng bộ tin nhắn 2 chiều Real-time với App Telegram ĐT",
+      "Hẹn giờ thông minh đa ca & báo cáo Push về điện thoại",
+      "Bao gồm toàn bộ đặc quyền gói VIP Pro Marketing"
+    ]
+  },
+  "pc_lifetime": {
+    "id": "plan_pc_lifetime",
+    "key": "pc_lifetime",
+    "name": "Tool Vĩnh Viễn (Cài Trên PC / Laptop)",
+    "price": 1490000,
+    "duration_days": 36500,
+    "max_accounts": 100,
+    "daily_broadcast_limit": 999999,
+    "features": [
+      "Bản quyền vĩnh viễn cài trực tiếp trên PC / Laptop cá nhân",
+      "Mua 1 lần duy nhất - Không tốn phí gia hạn hàng tháng",
+      "Kết nối tới 100 tài khoản Telegram chạy đa luồng",
+      "Toàn quyền lưu trữ dữ liệu & session độc lập trên máy riêng",
+      "Cập nhật phiên bản mới trọn đời & Hỗ trợ kỹ thuật 1-1"
     ]
   }
 }

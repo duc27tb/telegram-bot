@@ -219,8 +219,12 @@ async def request_otp(body: RequestOTPBody):
     if body.user_id and sb:
         try:
             from app.services.wallet_store import LocalWalletStore
-            tier = LocalWalletStore.get_subscription_tier(body.user_id)
-            max_allowed = 10 if tier == "VIP" else 3
+            from app.routers.admin import _load_plans
+            sub_info = LocalWalletStore.get_subscription(body.user_id)
+            tier = (sub_info.get("tier") or "FREE").upper()
+            p_key = sub_info.get("plan_key") or ("vip" if tier == "VIP" else "free")
+            plans = _load_plans()
+            max_allowed = int(plans.get(p_key, {}).get("max_accounts", 10 if tier == "VIP" else 3))
             existing_accs = sb.table("telegram_accounts").select("id, phone_number").eq("user_id", body.user_id).execute()
             current_accs = existing_accs.data or []
             already_exists = any(a.get("phone_number") == body.phone_number for a in current_accs)

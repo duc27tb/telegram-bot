@@ -16,42 +16,84 @@ router = APIRouter(prefix="/api/admin", tags=["Admin Governance"])
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data"))
 PLANS_FILE = os.path.join(DATA_DIR, "subscription_plans.json")
 
-def _load_plans() -> Dict[str, Any]:
-    # 1. Ưu tiên tải từ Supabase bảng subscription_plans
-    sb = get_supabase()
-    if sb:
-        try:
-            res = sb.table("subscription_plans").select("*").execute()
-            if res.data and len(res.data) > 0:
-                plans_dict = {}
-                for p in res.data:
-                    plan_key = "vip" if "vip" in p.get("id", "").lower() else "free"
-                    plans_dict[plan_key] = p
-                return plans_dict
-        except Exception:
-            pass
+DEFAULT_PLANS = {
+    "free": {
+        "id": "plan_free",
+        "key": "free",
+        "name": "Gói Miễn Phí (Free)",
+        "price": 0,
+        "duration_days": 3650,
+        "max_accounts": 3,
+        "daily_broadcast_limit": 50,
+        "features": [
+            "Tối đa 3 tài khoản Telegram kết nối",
+            "Quét & đồng bộ danh sách nhóm mục tiêu",
+            "Giới hạn 50 tin/ngày (1 mẫu tin cơ bản)"
+        ]
+    },
+    "vip": {
+        "id": "plan_vip_pro",
+        "key": "vip",
+        "name": "VIP Pro Marketing (Cloud)",
+        "price": 199000,
+        "duration_days": 30,
+        "max_accounts": 10,
+        "daily_broadcast_limit": 999999,
+        "features": [
+            "10 Tài khoản Telegram chạy song song",
+            "Hộp thư Live Chat 2 chiều nhận & trả lời tức thì",
+            "Spintax xoay vòng & Hẹn giờ thông minh",
+            "Chuyển tiếp tin nhắn riêng về Telegram cá nhân",
+            "Tự động né tránh FloodWait & Circuit Breaker"
+        ]
+    },
+    "mobile_auto": {
+        "id": "plan_mobile_auto",
+        "key": "mobile_auto",
+        "name": "Tự Động Toàn Diện Bằng Điện Thoại",
+        "price": 299000,
+        "duration_days": 30,
+        "max_accounts": 20,
+        "daily_broadcast_limit": 999999,
+        "features": [
+            "Tự động hóa 100% mọi tác vụ ngay trên Điện Thoại",
+            "20 Tài khoản Telegram chạy ngầm 24/7 khi tắt màn hình",
+            "Đồng bộ tin nhắn 2 chiều Real-time với App Telegram ĐT",
+            "Hẹn giờ thông minh đa ca & báo cáo Push về điện thoại",
+            "Bao gồm toàn bộ đặc quyền gói VIP Pro Marketing"
+        ]
+    },
+    "pc_lifetime": {
+        "id": "plan_pc_lifetime",
+        "key": "pc_lifetime",
+        "name": "Tool Vĩnh Viễn (Cài Trên PC / Laptop)",
+        "price": 1490000,
+        "duration_days": 36500,
+        "max_accounts": 100,
+        "daily_broadcast_limit": 999999,
+        "features": [
+            "Bản quyền vĩnh viễn cài trực tiếp trên PC / Laptop cá nhân",
+            "Mua 1 lần duy nhất - Không tốn phí gia hạn hàng tháng",
+            "Kết nối tới 100 tài khoản Telegram chạy đa luồng",
+            "Toàn quyền lưu trữ dữ liệu & session độc lập trên máy riêng",
+            "Cập nhật phiên bản mới trọn đời & Hỗ trợ kỹ thuật 1-1"
+        ]
+    }
+}
 
-    # 2. Tự động đồng bộ từ Supabase Cloud Storage (CloudKV) + Local Backup
-    return CloudKV.load("subscription_plans.json", lambda: {
-        "free": {
-            "id": "plan_free",
-            "name": "Gói Miễn Phí (Free)",
-            "price": 0,
-            "duration_days": 3650,
-            "max_accounts": 1,
-            "daily_broadcast_limit": 50,
-            "features": ["1 Tài khoản Telegram", "Quét nhóm cơ bản", "50 tin/ngày"]
-        },
-        "vip": {
-            "id": "plan_vip_pro",
-            "name": "VIP Pro (Doanh Nghiệp / Marketer)",
-            "price": 199000,
-            "duration_days": 30,
-            "max_accounts": 10,
-            "daily_broadcast_limit": 999999,
-            "features": ["10 Tài khoản Telegram", "Live Chat 2 chiều", "Spintax không giới hạn", "Tự động chống khoá FloodWait"]
-        }
-    })
+def _load_plans() -> Dict[str, Any]:
+    plans = CloudKV.load("subscription_plans.json", lambda: dict(DEFAULT_PLANS))
+    updated = False
+    for k, default_val in DEFAULT_PLANS.items():
+        if k not in plans or not isinstance(plans[k], dict):
+            plans[k] = dict(default_val)
+            updated = True
+        else:
+            plans[k].setdefault("key", k)
+            plans[k].setdefault("features", default_val["features"])
+    if updated:
+        CloudKV.save("subscription_plans.json", plans)
+    return plans
 
 def _save_plans(plans: Dict[str, Any]):
     # 1. Đồng bộ lên Supabase subscription_plans
@@ -77,6 +119,7 @@ def _save_plans(plans: Dict[str, Any]):
 
 
 class UpdatePricingBody(BaseModel):
+    plan_key: Optional[str] = "vip"
     price: int
     max_accounts: int
     duration_days: int
@@ -386,39 +429,25 @@ async def get_pricing_plans(admin_id: str = Depends(require_admin)):
 
 @router.put("/pricing")
 async def update_pricing_plans(body: UpdatePricingBody, admin_id: str = Depends(require_admin)):
-    """Cập nhật giá cước và hạn mức gói VIP Pro (Bắt buộc quyền ADMIN)"""
-    if body.price <= 0:
-        raise HTTPException(status_code=400, detail="Giá gói cước phải là số dương")
+    """Cập nhật giá cước và hạn mức cho bất kỳ gói dịch vụ nào (Bắt buộc quyền ADMIN)"""
+    target_key = (body.plan_key or "vip").strip().lower()
+    if target_key != "free" and body.price <= 0:
+        raise HTTPException(status_code=400, detail="Giá gói cước trả phí phải lớn hơn 0 ₫")
     if body.max_accounts <= 0:
         raise HTTPException(status_code=400, detail="Số tài khoản tối đa phải lớn hơn 0")
 
     plans = _load_plans()
-    if "vip" not in plans:
-        plans["vip"] = {}
+    if target_key not in plans:
+        plans[target_key] = {"id": f"plan_{target_key}", "key": target_key}
 
-    plans["vip"]["price"] = body.price
-    plans["vip"]["max_accounts"] = body.max_accounts
-    plans["vip"]["duration_days"] = body.duration_days
+    plans[target_key]["price"] = body.price
+    plans[target_key]["max_accounts"] = body.max_accounts
+    plans[target_key]["duration_days"] = body.duration_days
     if body.name:
-        plans["vip"]["name"] = body.name
+        plans[target_key]["name"] = body.name
 
     _save_plans(plans)
-
-    # Nếu có Supabase, cập nhật subscription_plans
-    sb = get_supabase()
-    if sb:
-        try:
-            sb.table("subscription_plans").upsert({
-                "plan_name": plans["vip"].get("name", "VIP Pro"),
-                "price_vnd": body.price,
-                "max_accounts": body.max_accounts,
-                "duration_days": body.duration_days,
-                "is_active": True
-            }).execute()
-        except Exception as e:
-            print(f"⚠️ Lỗi update subscription_plans Supabase: {e}")
-
-    return {"success": True, "data": plans["vip"]}
+    return {"success": True, "data": plans[target_key], "plans": plans}
 
 
 @router.get("/transactions")

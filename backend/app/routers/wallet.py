@@ -129,6 +129,7 @@ async def credit_manual(body: CreditManualBody, admin_id: str = Depends(require_
 
 class UpgradeVipBody(BaseModel):
     user_id: str
+    plan_key: Optional[str] = "vip"
 
 @router.get("/plans")
 async def get_subscription_plans():
@@ -139,16 +140,18 @@ async def get_subscription_plans():
 
 @router.post("/upgrade-vip")
 async def upgrade_vip(body: UpgradeVipBody):
-    """Nâng cấp tài khoản lên VIP Pro (30 ngày) bằng số dư ví (Supabase-First)"""
+    """Nâng cấp tài khoản lên gói trả phí (VIP Pro / Mobile Auto / Tool PC Vĩnh Viễn) bằng số dư ví"""
     from datetime import datetime, timedelta
     from app.services.activity_service import ActivityService
     from app.routers.admin import _load_plans
 
     user_id = body.user_id
+    target_key = (body.plan_key or "vip").strip().lower()
     plans = _load_plans()
-    vip_plan = plans.get("vip", {})
-    cost = vip_plan.get("price", 199000)
-    duration_days = vip_plan.get("duration_days", 30)
+    vip_plan = plans.get(target_key) or plans.get("vip", {})
+    plan_name = vip_plan.get("name", "VIP Pro")
+    cost = int(vip_plan.get("price", 199000))
+    duration_days = int(vip_plan.get("duration_days", 30))
 
     # 1. Lấy số dư hiện tại và gói cước hiện tại
     local_bal = LocalWalletStore.get_balance(user_id)
@@ -196,7 +199,7 @@ async def upgrade_vip(body: UpgradeVipBody):
 
     # 4. Trừ tiền và cập nhật trạng thái trong Supabase profiles và Local Store
     LocalWalletStore.set_balance(user_id, new_balance)
-    LocalWalletStore.set_subscription(user_id, "VIP", new_expiry_str)
+    LocalWalletStore.set_subscription(user_id, "VIP", new_expiry_str, plan_key=target_key)
 
     # Cập nhật số dư và gói VIP trực tiếp trong Supabase profiles
     if sb:
@@ -214,7 +217,7 @@ async def upgrade_vip(body: UpgradeVipBody):
         ActivityService.log_activity(
             user_id=user_id,
             action_type="SUBSCRIPTION_UPGRADE",
-            title="Nâng cấp gói VIP Pro (30 Ngày)",
+            title=f"Kích hoạt {plan_name}",
             description=f"Đã trừ {cost:,} ₫ từ ví. Hạn sử dụng VIP Pro đến {new_expiry_dt.strftime('%d/%m/%Y %H:%M')}."
         )
     except Exception:
@@ -237,9 +240,11 @@ async def upgrade_vip(body: UpgradeVipBody):
         "success": True,
         "data": {
             "subscription_tier": "VIP",
+            "plan_key": target_key,
+            "plan_name": plan_name,
             "tier_expires_at": new_expiry_str,
             "new_balance": new_balance,
-            "message": f"Chúc mừng bạn đã nâng cấp thành công gói VIP Pro! Hạn dùng đến {new_expiry_dt.strftime('%d/%m/%Y')}."
+            "message": f"Chúc mừng bạn đã kích hoạt thành công {plan_name}! Hạn dùng đến {'Vĩnh viễn' if duration_days >= 3650 else new_expiry_dt.strftime('%d/%m/%Y')}."
         }
     }
 

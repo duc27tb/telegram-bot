@@ -26,11 +26,24 @@ const getBackendUrl = () => {
 
 export const BACKEND_URL = getBackendUrl();
 
+export async function getUserHeaders() {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+  } catch {
+    return { 'Content-Type': 'application/json' };
+  }
+}
+
 export async function requestOTP(phoneNumber, apiId = null, apiHash = null, userId = null) {
   try {
     const res = await fetch(`${BACKEND_URL}/api/accounts/request-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getUserHeaders(),
       body: JSON.stringify({ phone_number: phoneNumber, api_id: apiId, api_hash: apiHash, user_id: userId })
     });
     let data;
@@ -52,7 +65,7 @@ export async function verifyOTP(loginId, code, password, userId) {
   try {
     const res = await fetch(`${BACKEND_URL}/api/accounts/verify-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getUserHeaders(),
       body: JSON.stringify({ login_id: loginId, code, password, user_id: userId })
     });
     let data;
@@ -91,7 +104,7 @@ export async function startCampaign(userId) {
   try {
     const res = await fetch(`${BACKEND_URL}/api/campaign/start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getUserHeaders(),
       body: JSON.stringify({ user_id: userId })
     });
     return await res.json();
@@ -104,7 +117,7 @@ export async function stopCampaign(userId) {
   try {
     const res = await fetch(`${BACKEND_URL}/api/campaign/stop`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getUserHeaders(),
       body: JSON.stringify({ user_id: userId })
     });
     return await res.json();
@@ -130,7 +143,7 @@ export async function getCampaignLogs(userId, limit = 50) {
 export async function updateCampaignSettings(userId, settings) {
   const res = await fetch(`${BACKEND_URL}/api/campaign/settings`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getUserHeaders(),
     body: JSON.stringify({ user_id: userId, ...settings })
   });
   return res.json();
@@ -139,7 +152,7 @@ export async function updateCampaignSettings(userId, settings) {
 export async function replyCustomerMessage(userId, accountId, customerSenderId, text) {
   const res = await fetch(`${BACKEND_URL}/api/chat/reply`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getUserHeaders(),
     body: JSON.stringify({
       user_id: userId,
       account_id: accountId,
@@ -153,7 +166,7 @@ export async function replyCustomerMessage(userId, accountId, customerSenderId, 
 export async function createDeposit(userId, amount) {
   const res = await fetch(`${BACKEND_URL}/api/wallet/create-deposit`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getUserHeaders(),
     body: JSON.stringify({ user_id: userId, amount: parseInt(amount, 10) })
   });
   return res.json();
@@ -187,7 +200,7 @@ export async function getUserActivities(userId, limit = 50) {
 export async function logUserActivity(userId, actionType, actionTitle, description = '', metadata = {}) {
   const res = await fetch(`${BACKEND_URL}/api/activities/log`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getUserHeaders(),
     body: JSON.stringify({
       user_id: userId,
       action_type: actionType,
@@ -312,12 +325,12 @@ export async function getSubscriptionPlans() {
   return res.json();
 }
 
-export async function upgradeVipPlan(userId) {
+export async function upgradeVipPlan(userId, planKey = 'vip') {
   try {
     const res = await fetch(`${BACKEND_URL}/api/wallet/upgrade-vip`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId })
+      headers: await getUserHeaders(),
+      body: JSON.stringify({ user_id: userId, plan_key: planKey })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -384,7 +397,7 @@ export async function updatePlatformSettings(settingsData, adminId) {
 export async function testTelegramAlert(userId, targetUsername) {
   const res = await fetch(`${BACKEND_URL}/api/activities/test-telegram-alert`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getUserHeaders(),
     body: JSON.stringify({ user_id: userId, target_username: targetUsername })
   });
   return res.json();

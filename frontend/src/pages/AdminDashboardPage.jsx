@@ -80,6 +80,7 @@ export default function AdminDashboardPage({ activeTab = 'overview', setActiveTa
 
   // Modals state
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [editingPlanKey, setEditingPlanKey] = useState('vip');
   const [selectedUserForBalance, setSelectedUserForBalance] = useState(null);
   const [selectedUserForSubscription, setSelectedUserForSubscription] = useState(null);
 
@@ -888,6 +889,8 @@ export default function AdminDashboardPage({ activeTab = 'overview', setActiveTa
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
             background: 'rgba(15, 23, 42, 0.8)',
             padding: '20px 24px',
             borderRadius: '16px',
@@ -895,15 +898,15 @@ export default function AdminDashboardPage({ activeTab = 'overview', setActiveTa
           }}>
             <div>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#f8fafc' }}>
-                Cấu Hình Bảng Giá Dịch Vụ & Giới Hạn Gói Cước
+                Cấu Hình Bảng Giá Dịch Vụ & Giới Hạn Các Gói Cước
               </h2>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
-                Thay đổi giá gói, số lượng tài khoản Telegram tối đa và các đặc quyền mở khóa cho toàn sàn
+                Toàn quyền thay đổi tên, giá bán và giới hạn tài khoản cho từng gói dịch vụ trên toàn sàn
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setIsPricingModalOpen(true)}
+              onClick={() => { setEditingPlanKey('vip'); setIsPricingModalOpen(true); }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -920,85 +923,102 @@ export default function AdminDashboardPage({ activeTab = 'overview', setActiveTa
               }}
             >
               <Sparkles size={16} />
-              <span>Chỉnh Sửa Giá VIP Pro</span>
+              <span>Chỉnh Sửa Giá Các Gói</span>
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-            {/* Gói Free */}
-            <div className="card" style={{ padding: '24px', borderRadius: '16px', background: '#0f172a', border: '1px solid rgba(148, 163, 184, 0.2)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontSize: '18px', fontWeight: '800', color: '#f8fafc' }}>Gói Miễn Phí (Free)</span>
-                <span style={{ fontSize: '11px', fontWeight: '700', padding: '3px 8px', borderRadius: '6px', background: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }}>
-                  MẶC ĐỊNH
-                </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px' }}>
+            {/* 1. Gói Free */}
+            <div className="card" style={{ padding: '22px', borderRadius: '16px', background: '#0f172a', border: '1px solid rgba(148, 163, 184, 0.2)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '16px', fontWeight: '800', color: '#f8fafc' }}>{pricingPlans?.free?.name || 'Gói Miễn Phí (Free)'}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '6px', background: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8' }}>MẶC ĐỊNH</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: '900', color: '#f8fafc', marginBottom: '14px' }}>
+                  0 ₫ <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '400' }}>/ trọn đời</span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#cbd5e1' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#10b981" /> Tối đa {pricingPlans?.free?.max_accounts || 3} tài khoản Telegram</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#10b981" /> Quét đồng bộ danh sách nhóm</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#10b981" /> Giới hạn 50 tin nhắn rải/ngày</li>
+                </ul>
               </div>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#f8fafc', marginBottom: '16px' }}>
-                0 ₫ <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '400' }}>/ trọn đời</span>
-              </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', color: '#cbd5e1' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#10b981" /> Tối đa 1 tài khoản Telegram MTProto
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#10b981" /> Quét đồng bộ danh sách nhóm mục tiêu
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#10b981" /> Giới hạn 50 tin nhắn rải/ngày
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
-                  ✕ Không hỗ trợ Live Chat 2 chiều
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
-                  ✕ Không hỗ trợ chuyển tiếp tin về Telegram cá nhân
-                </li>
-              </ul>
             </div>
 
-            {/* Gói VIP Pro */}
-            <div className="card" style={{
-              padding: '24px',
-              borderRadius: '16px',
-              background: 'linear-gradient(180deg, #131929 0%, #0f172a 100%)',
-              border: '2px solid rgba(245, 158, 11, 0.5)',
-              boxShadow: '0 8px 30px rgba(245, 158, 11, 0.15)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Crown size={20} color="#fbbf24" />
-                  <span style={{ fontSize: '18px', fontWeight: '900', color: '#fbbf24' }}>VIP Pro Marketing</span>
+            {/* 2. Gói VIP Pro Cloud */}
+            <div className="card" style={{ padding: '22px', borderRadius: '16px', background: 'linear-gradient(180deg, #131929 0%, #0f172a 100%)', border: '2px solid rgba(245, 158, 11, 0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '16px', fontWeight: '900', color: '#fbbf24' }}>{pricingPlans?.vip?.name || 'VIP Pro Marketing'}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' }}>CLOUD WEB</span>
                 </div>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: '800',
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                  color: '#fff'
-                }}>
-                  HOT GÓI THUÊ BAO
-                </span>
+                <div style={{ fontSize: '26px', fontWeight: '900', color: '#fbbf24', marginBottom: '14px' }}>
+                  {(pricingPlans?.vip?.price || 199000).toLocaleString('vi-VN')} ₫ <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '400' }}>/ {pricingPlans?.vip?.duration_days || 30} ngày</span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#e2e8f0' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#fbbf24" /> Tối đa <strong>{pricingPlans?.vip?.max_accounts || 10} tài khoản</strong> chạy song song</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#fbbf24" /> Live Chat 2 chiều & Hẹn giờ thông minh</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#fbbf24" /> Chuyển tiếp báo cáo về Telegram Admin</li>
+                </ul>
               </div>
-              <div style={{ fontSize: '28px', fontWeight: '900', color: '#fbbf24', marginBottom: '16px' }}>
-                {(pricingPlans?.vip?.price || 199000).toLocaleString('vi-VN')} ₫ <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '400' }}>/ 30 ngày</span>
+              <button
+                type="button"
+                onClick={() => { setEditingPlanKey('vip'); setIsPricingModalOpen(true); }}
+                style={{ marginTop: '16px', width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.45)', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', fontWeight: '700', fontSize: '12.5px', cursor: 'pointer' }}
+              >
+                ✎ Đổi Giá Gói VIP Pro
+              </button>
+            </div>
+
+            {/* 3. Gói Tự Động Bằng Điện Thoại */}
+            <div className="card" style={{ padding: '22px', borderRadius: '16px', background: 'linear-gradient(180deg, #0c192c 0%, #0f172a 100%)', border: '2px solid rgba(56, 189, 248, 0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '16px', fontWeight: '900', color: '#38bdf8' }}>{pricingPlans?.mobile_auto?.name || 'Tự Động Bằng Điện Thoại'}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>MOBILE 24/7</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: '900', color: '#38bdf8', marginBottom: '14px' }}>
+                  {(pricingPlans?.mobile_auto?.price || 299000).toLocaleString('vi-VN')} ₫ <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '400' }}>/ {pricingPlans?.mobile_auto?.duration_days || 30} ngày</span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#e2e8f0' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#38bdf8" /> Tối đa <strong>{pricingPlans?.mobile_auto?.max_accounts || 20} tài khoản</strong> tự động trên ĐT</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#38bdf8" /> Chạy ngầm 24/7 khi tắt màn hình điện thoại</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#38bdf8" /> Đồng bộ Real-time 2 chiều với App Telegram ĐT</li>
+                </ul>
               </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', color: '#e2e8f0' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#fbbf24" /> Kết nối tối đa <strong>{pricingPlans?.vip?.max_accounts || 10} Tài khoản Telegram</strong>
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#fbbf24" /> <strong>Live Chat 2 Chiều:</strong> Nhắn tin với khách hàng không cần rời web
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#fbbf24" /> <strong>Forwarding:</strong> Chuyển tiếp tin nhắn khách hàng về Telegram Admin
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#fbbf24" /> Không giới hạn kho tin nhắn & Spintax xoay vòng
-                </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Check size={16} color="#fbbf24" /> Tự động ngắt nghỉ thông minh chống khóa nick FloodWait
-                </li>
-              </ul>
+              <button
+                type="button"
+                onClick={() => { setEditingPlanKey('mobile_auto'); setIsPricingModalOpen(true); }}
+                style={{ marginTop: '16px', width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.45)', background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', fontWeight: '700', fontSize: '12.5px', cursor: 'pointer' }}
+              >
+                ✎ Đổi Giá Gói Điện Thoại
+              </button>
+            </div>
+
+            {/* 4. Gói Tool Vĩnh Viễn (PC / Laptop) */}
+            <div className="card" style={{ padding: '22px', borderRadius: '16px', background: 'linear-gradient(180deg, #1b122c 0%, #0f172a 100%)', border: '2px solid rgba(168, 85, 247, 0.5)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '16px', fontWeight: '900', color: '#c084fc' }}>{pricingPlans?.pc_lifetime?.name || 'Tool Vĩnh Viễn (PC / Laptop)'}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}>VĨNH VIỄN</span>
+                </div>
+                <div style={{ fontSize: '26px', fontWeight: '900', color: '#c084fc', marginBottom: '14px' }}>
+                  {(pricingPlans?.pc_lifetime?.price || 1490000).toLocaleString('vi-VN')} ₫ <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '400' }}>/ vĩnh viễn</span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12.5px', color: '#e2e8f0' }}>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#c084fc" /> Tối đa <strong>{pricingPlans?.pc_lifetime?.max_accounts || 100} tài khoản</strong> trên PC/Laptop</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#c084fc" /> Bản quyền cài máy cá nhân trọn đời (0đ gia hạn)</li>
+                  <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={15} color="#c084fc" /> Cập nhật tính năng mới trọn đời & Hỗ trợ 1-1</li>
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setEditingPlanKey('pc_lifetime'); setIsPricingModalOpen(true); }}
+                style={{ marginTop: '16px', width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid rgba(168, 85, 247, 0.45)', background: 'rgba(168, 85, 247, 0.12)', color: '#c084fc', fontWeight: '700', fontSize: '12.5px', cursor: 'pointer' }}
+              >
+                ✎ Đổi Giá Gói Vĩnh Viễn PC
+              </button>
             </div>
           </div>
         </div>
@@ -1365,6 +1385,7 @@ export default function AdminDashboardPage({ activeTab = 'overview', setActiveTa
       {/* ============================================================ */}
       <AdminPricingModal
         isOpen={isPricingModalOpen}
+        initialPlanKey={editingPlanKey}
         onClose={() => setIsPricingModalOpen(false)}
         onSuccess={() => fetchData(true)}
         showToast={showToast}

@@ -1,39 +1,70 @@
 import React, { useState, useEffect } from 'react';
-import { X, Tag, DollarSign, Users, Calendar, Check, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { X, DollarSign, Users, Calendar, Check, AlertCircle, Loader2, Sparkles, Crown, Smartphone, Monitor } from 'lucide-react';
 import { getAdminPricing, updateAdminPricing } from '../../lib/api';
 
-export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToast }) {
+const PLAN_TABS = [
+  { key: 'vip', label: 'VIP Pro (Cloud)', icon: Crown, color: '#f59e0b' },
+  { key: 'mobile_auto', label: 'Tự Động Bằng ĐT', icon: Smartphone, color: '#38bdf8' },
+  { key: 'pc_lifetime', label: 'Tool Vĩnh Viễn PC', icon: Monitor, color: '#a855f7' }
+];
+
+const DEFAULT_FALLBACKS = {
+  vip: { name: 'VIP Pro Marketing (Cloud)', price: 199000, max_accounts: 10, duration_days: 30 },
+  mobile_auto: { name: 'Tự Động Toàn Diện Bằng Điện Thoại', price: 299000, max_accounts: 20, duration_days: 30 },
+  pc_lifetime: { name: 'Tool Vĩnh Viễn (Cài Trên PC / Laptop)', price: 1490000, max_accounts: 100, duration_days: 36500 }
+};
+
+export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToast, initialPlanKey = 'vip' }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [allPlans, setAllPlans] = useState({});
+  const [selectedKey, setSelectedKey] = useState(initialPlanKey || 'vip');
   const [price, setPrice] = useState(199000);
   const [maxAccounts, setMaxAccounts] = useState(10);
   const [durationDays, setDurationDays] = useState(30);
-  const [planName, setPlanName] = useState('VIP Pro (Doanh Nghiệp / Marketer)');
+  const [planName, setPlanName] = useState('VIP Pro Marketing (Cloud)');
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      loadCurrentPricing();
+      const target = initialPlanKey || 'vip';
+      setSelectedKey(target);
+      loadCurrentPricing(target);
     }
-  }, [isOpen]);
+  }, [isOpen, initialPlanKey]);
 
-  const loadCurrentPricing = async () => {
+  const applyPlanToForm = (key, plansDict) => {
+    const fallback = DEFAULT_FALLBACKS[key] || DEFAULT_FALLBACKS.vip;
+    const p = (plansDict && plansDict[key]) || fallback;
+    setPrice(p.price ?? fallback.price);
+    setMaxAccounts(p.max_accounts ?? fallback.max_accounts);
+    setDurationDays(p.duration_days ?? fallback.duration_days);
+    setPlanName(p.name || fallback.name);
+  };
+
+  const loadCurrentPricing = async (targetKey = selectedKey) => {
     setLoading(true);
     setErrorMsg('');
     try {
       const res = await getAdminPricing();
-      if (res && res.success && res.data && res.data.vip) {
-        const vip = res.data.vip;
-        setPrice(vip.price || 199000);
-        setMaxAccounts(vip.max_accounts || 10);
-        setDurationDays(vip.duration_days || 30);
-        if (vip.name) setPlanName(vip.name);
+      if (res && res.success && res.data) {
+        setAllPlans(res.data);
+        applyPlanToForm(targetKey, res.data);
+      } else {
+        applyPlanToForm(targetKey, DEFAULT_FALLBACKS);
       }
     } catch (err) {
       console.error('Lỗi tải bảng giá admin:', err);
+      applyPlanToForm(targetKey, DEFAULT_FALLBACKS);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectTab = (key) => {
+    setSelectedKey(key);
+    setErrorMsg('');
+    applyPlanToForm(key, allPlans);
   };
 
   const handleSave = async (e) => {
@@ -53,6 +84,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
       const minSpin = new Promise(resolve => setTimeout(resolve, 600));
       const [res] = await Promise.all([
         updateAdminPricing({
+          plan_key: selectedKey,
           price: parseInt(price, 10),
           max_accounts: parseInt(maxAccounts, 10),
           duration_days: parseInt(durationDays, 10),
@@ -62,10 +94,12 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
       ]);
 
       if (res && res.success) {
+        const updatedPlans = { ...allPlans, [selectedKey]: res.data };
+        setAllPlans(updatedPlans);
         if (showToast) {
           showToast({
-            title: 'Thành công',
-            message: 'Đã cập nhật bảng giá và hạn mức gói VIP Pro thành công!',
+            title: 'Đã cập nhật giá gói cước',
+            message: `Đã lưu cấu hình gói "${planName}" (${parseInt(price, 10).toLocaleString('vi-VN')} ₫) thành công!`,
             type: 'success'
           });
         }
@@ -99,7 +133,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
       padding: '16px'
     }}>
       <div className="card" style={{
-        maxWidth: '520px',
+        maxWidth: '560px',
         width: '100%',
         background: 'var(--bg-card, #0f172a)',
         border: '1px solid var(--border-medium, rgba(148, 163, 184, 0.25))',
@@ -108,7 +142,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
         boxShadow: '0 20px 30px -10px rgba(0, 0, 0, 0.7)'
       }}>
         {/* Modal Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
               width: '40px',
@@ -125,10 +159,10 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--text-main, #f8fafc)' }}>
-                Cấu Hình Bảng Giá & Hạn Mức VIP
+                Chỉnh Sửa Bảng Giá & Hạn Mức Các Gói
               </h3>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted, #94a3b8)' }}>
-                Thiết lập giá cước và hạn mức tài khoản gói VIP Pro
+                Chọn gói bên dưới để đổi tên, giá bán và giới hạn tài khoản
               </p>
             </div>
           </div>
@@ -140,6 +174,48 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
           >
             <X size={18} />
           </button>
+        </div>
+
+        {/* Plan Selector Tabs */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '8px',
+          marginBottom: '18px',
+          background: 'rgba(15, 23, 42, 0.9)',
+          padding: '6px',
+          borderRadius: '12px',
+          border: '1px solid rgba(148, 163, 184, 0.18)'
+        }}>
+          {PLAN_TABS.map((t) => {
+            const Icon = t.icon;
+            const active = selectedKey === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => handleSelectTab(t.key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '9px 8px',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  border: active ? `1px solid ${t.color}` : '1px solid transparent',
+                  background: active ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
+                  color: active ? t.color : '#94a3b8',
+                  transition: 'all 0.15s'
+                }}
+              >
+                <Icon size={14} />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {errorMsg && (
@@ -171,7 +247,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
               {/* Tên gói */}
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px', color: 'var(--text-main, #f8fafc)' }}>
-                  Tên Gói Dịch Vụ
+                  Tên Hiển Thị Của Gói
                 </label>
                 <input
                   type="text"
@@ -194,7 +270,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
               {/* Giá cước */}
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px', color: 'var(--text-main, #f8fafc)' }}>
-                  Giá Gói Cước (VNĐ / Chu kỳ)
+                  Giá Bán (VNĐ)
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -213,13 +289,13 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
                       fontSize: '15px'
                     }}
                     min={10000}
-                    step={10000}
+                    step={1000}
                     required
                   />
                   <DollarSign size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Tương đương: <strong style={{ color: '#fbbf24' }}>{parseInt(price || 0, 10).toLocaleString('vi-VN')} ₫</strong>
+                  Hiển thị trên web: <strong style={{ color: '#fbbf24' }}>{parseInt(price || 0, 10).toLocaleString('vi-VN')} ₫</strong>
                 </div>
               </div>
 
@@ -227,7 +303,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px', color: 'var(--text-main, #f8fafc)' }}>
-                    Tài Khoản Tối Đa
+                    Số Tài Khoản Telegram Tối Đa
                   </label>
                   <div style={{ position: 'relative' }}>
                     <input
@@ -246,7 +322,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
                         fontSize: '14px'
                       }}
                       min={1}
-                      max={100}
+                      max={999}
                       required
                     />
                     <Users size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -255,7 +331,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '6px', color: 'var(--text-main, #f8fafc)' }}>
-                    Thời Hạn (Ngày)
+                    Thời Hạn Sử Dụng (Ngày)
                   </label>
                   <div style={{ position: 'relative' }}>
                     <input
@@ -274,15 +350,17 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
                         fontSize: '14px'
                       }}
                       min={1}
-                      max={365}
+                      max={36500}
                       required
                     />
                     <Calendar size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                   </div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                    {parseInt(durationDays, 10) >= 3650 ? 'Mặc định hiển thị: Vĩnh viễn' : `${durationDays} ngày`}
+                  </div>
                 </div>
               </div>
 
-              {/* Box ghi chú nghiệp vụ */}
               <div style={{
                 background: 'rgba(37, 99, 235, 0.08)',
                 border: '1px solid rgba(37, 99, 235, 0.25)',
@@ -291,7 +369,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
                 fontSize: '12px',
                 color: 'var(--text-secondary, #cbd5e1)'
               }}>
-                💡 Thay đổi mức giá sẽ có hiệu lực ngay lập tức trên trang Nâng cấp VIP của khách hàng và bảng giá công khai.
+                💡 Thay đổi giá và thông tin sẽ đồng bộ ngay lập tức lên Supabase Cloud và hiển thị tại trang Bảng Giá của khách hàng.
               </div>
             </div>
 
@@ -325,7 +403,7 @@ export default function AdminPricingModal({ isOpen, onClose, onSuccess, showToas
                 ) : (
                   <>
                     <Check size={16} />
-                    <span>Lưu Cấu Hình</span>
+                    <span>Lưu Giá Gói Này</span>
                   </>
                 )}
               </button>
