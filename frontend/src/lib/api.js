@@ -349,6 +349,22 @@ export async function getAdminBots(adminId) {
   return res.json();
 }
 
+export async function getPublicSupportInfo() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/admin/public/support-info`);
+    return await res.json();
+  } catch (e) {
+    return {
+      success: true,
+      data: {
+        support_telegram: 'vhoang25',
+        support_zalo: '0869098696',
+        support_hotline: '0869098696'
+      }
+    };
+  }
+}
+
 export async function getPlatformSettings(adminId) {
   const res = await fetch(`${BACKEND_URL}/api/admin/settings`, {
     headers: getAdminHeaders(adminId)

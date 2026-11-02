@@ -48,10 +48,12 @@ export default function LandingFooter() {
           </div>
 
           {/* Quick links */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
             <a href="#features" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Tính năng</a>
             <a href="#pricing" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Bảng giá</a>
-            <a href="#faq" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Hỏi đáp</a>
+            <Link to="/about" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Về chúng tôi</Link>
+            <Link to="/terms" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Điều khoản & Miễn trừ</Link>
+            <Link to="/guide/telegram-api" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Hướng dẫn API</Link>
             <Link to="/login" style={{ color: 'var(--primary-light)', textDecoration: 'none', fontWeight: '600' }}>Đăng nhập</Link>
           </div>
         </div>

@@ -255,10 +255,13 @@ async def request_otp(body: RequestOTPBody):
         except Exception:
             pass
 
+    # 3. Nếu người dùng chưa từng nhập API ID/Hash riêng, tự động dùng API ID & API Hash mặc định của hệ thống
     if not api_id_val or not str(api_id_val).strip():
-        raise HTTPException(status_code=400, detail="Bắt buộc phải nhập API ID riêng của bạn! Vui lòng xem hướng dẫn lấy API ID & API Hash.")
+        from app.config import settings
+        api_id_val = settings.DEFAULT_API_ID
     if not api_hash_val or not str(api_hash_val).strip():
-        raise HTTPException(status_code=400, detail="Bắt buộc phải nhập API Hash riêng của bạn! Vui lòng xem hướng dẫn lấy API ID & API Hash.")
+        from app.config import settings
+        api_hash_val = settings.DEFAULT_API_HASH
 
     result = await OTPService.request_otp(
         phone=body.phone_number,

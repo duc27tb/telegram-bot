@@ -8,6 +8,7 @@ import LandingWorkflow from '../components/landing/LandingWorkflow';
 import LandingPricing from '../components/landing/LandingPricing';
 import LandingFaq from '../components/landing/LandingFaq';
 import LandingFooter from '../components/landing/LandingFooter';
+import SupportWidget from '../components/common/SupportWidget';
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -39,6 +40,7 @@ export default function LandingPage() {
       <LandingPricing onAuthClick={handleAuthClick} />
       <LandingFaq />
       <LandingFooter />
+      <SupportWidget />
     </div>
   );
 }

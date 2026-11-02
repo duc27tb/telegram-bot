@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
-from app.services.pyrogram_engine import bot_engine
+from app.services.pyrogram_engine import bot_engine, check_schedule_window
 from app.database import get_supabase
 
 router = APIRouter(prefix="/api/campaign", tags=["Campaign"])
@@ -15,6 +15,10 @@ class UpdateCampaignSettings(BaseModel):
     group_delay_seconds: Optional[int] = None
     cycle_delay_seconds: Optional[int] = None
     forward_to_telegram: Optional[bool] = None
+    schedule_enabled: Optional[bool] = None
+    time_slots: Optional[List[Dict[str, str]]] = None
+    active_days: Optional[List[int]] = None
+    timezone: Optional[str] = None
 
 @router.post("/start")
 async def start_campaign(body: UserCampaignAction):
@@ -95,10 +99,29 @@ async def get_campaign_status(user_id: str):
             "is_expired": passed >= c_delay
         }
 
+    # Đánh giá trạng thái khung giờ hẹn giờ (Smart Scheduler Evaluation)
+    schedule_info = None
+    if camp.data:
+        c_set = camp.data[0]
+        is_in_win, wait_sec, sched_msg, next_time = check_schedule_window(c_set)
+        schedule_info = {
+            "enabled": bool(c_set.get("schedule_enabled", False)),
+            "is_in_window": is_in_win,
+            "wait_seconds": wait_sec,
+            "status_message": sched_msg,
+            "next_run_at": next_time,
+            "time_slots": c_set.get("time_slots") or [
+                {"start": "08:00", "end": "11:30"},
+                {"start": "13:30", "end": "18:00"}
+            ],
+            "active_days": c_set.get("active_days") or [1, 2, 3, 4, 5, 6, 7]
+        }
+
     return {
         "settings": camp.data[0] if camp.data else None,
         "is_task_running": is_active,
-        "checkpoint": checkpoint_info
+        "checkpoint": checkpoint_info,
+        "schedule": schedule_info
     }
 
 @router.put("/settings")
@@ -114,7 +137,6 @@ async def update_settings(body: UpdateCampaignSettings):
     if body.cycle_delay_seconds is not None:
         update_data["cycle_delay_seconds"] = body.cycle_delay_seconds
     if body.forward_to_telegram is not None:
-        # Kiểm tra gói cước người dùng
         from app.services.wallet_store import LocalWalletStore
         is_vip = LocalWalletStore.get_subscription_tier(body.user_id) == "VIP"
         if body.forward_to_telegram and not is_vip:
@@ -123,6 +145,15 @@ async def update_settings(body: UpdateCampaignSettings):
                 detail="Tính năng tự động chuyển tiếp tin nhắn về Telegram cá nhân chỉ dành riêng cho gói VIP Pro!"
             )
         update_data["forward_to_telegram"] = body.forward_to_telegram if is_vip else False
+
+    if body.schedule_enabled is not None:
+        update_data["schedule_enabled"] = body.schedule_enabled
+    if body.time_slots is not None:
+        update_data["time_slots"] = body.time_slots
+    if body.active_days is not None:
+        update_data["active_days"] = body.active_days
+    if body.timezone is not None:
+        update_data["timezone"] = body.timezone
 
     update_data["updated_at"] = "now()"
 

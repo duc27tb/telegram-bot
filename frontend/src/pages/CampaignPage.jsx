@@ -27,7 +27,11 @@ import {
   Info,
   ShieldCheck,
   X,
-  Copy
+  Copy,
+  Clock,
+  Calendar,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -42,6 +46,9 @@ import {
   formatFriendlyLogMessage
 } from '../lib/api';
 import ConfirmModal from '../components/common/ConfirmModal';
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = ['00', '15', '30', '45'];
 
 export default function CampaignPage() {
   const { user, profile } = useAuth();
@@ -66,6 +73,15 @@ export default function CampaignPage() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [showDelayInfoModal, setShowDelayInfoModal] = useState(false);
+
+  // Smart Scheduler States
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [timeSlots, setTimeSlots] = useState([
+    { start: '08:00', end: '11:30' },
+    { start: '13:30', end: '18:00' }
+  ]);
+  const [activeDays, setActiveDays] = useState([1, 2, 3, 4, 5, 6, 7]);
+  const [scheduleStatus, setScheduleStatus] = useState(null);
 
   // Message Templates List
   const [templates, setTemplates] = useState([]);
@@ -146,6 +162,15 @@ export default function CampaignPage() {
           setGroupDelay(campRes.data.group_delay_seconds || 120);
           setCycleDelay(campRes.data.cycle_delay_seconds || 1200);
           setForwardTelegram(campRes.data.forward_to_telegram ?? true);
+          if (campRes.data.schedule_enabled !== undefined) {
+            setScheduleEnabled(Boolean(campRes.data.schedule_enabled));
+          }
+          if (Array.isArray(campRes.data.time_slots) && campRes.data.time_slots.length > 0) {
+            setTimeSlots(campRes.data.time_slots);
+          }
+          if (Array.isArray(campRes.data.active_days) && campRes.data.active_days.length > 0) {
+            setActiveDays(campRes.data.active_days);
+          }
         }
         if (tmplRes.data) {
           setTemplates(tmplRes.data);
@@ -158,6 +183,9 @@ export default function CampaignPage() {
         }
         if (statusRes) {
           setIsRunning(Boolean(statusRes.is_task_running || statusRes.settings?.is_running));
+          if (statusRes.schedule) {
+            setScheduleStatus(statusRes.schedule);
+          }
         }
       } catch (e) {
         console.error('Lỗi tải dữ liệu Campaign:', e);
@@ -300,19 +328,86 @@ export default function CampaignPage() {
     }
   };
 
-  // Lưu cấu hình thời gian delay & chuyển tiếp tin nhắn (Giữ nguyên)
+  // Quản lý khung giờ phát tin tự động (Smart Campaign Scheduler)
+  const handleAddTimeSlot = () => {
+    if (timeSlots.length >= 5) {
+      showToast({ title: 'Tối đa 5 khung giờ', message: 'Bạn chỉ có thể tạo tối đa 5 khung giờ phát tin!', type: 'warning' });
+      return;
+    }
+    setTimeSlots(prev => [...prev, { start: '19:30', end: '22:00' }]);
+  };
+
+  const handleRemoveTimeSlot = (index) => {
+    if (timeSlots.length <= 1) {
+      showToast({ title: 'Tối thiểu 1 khung giờ', message: 'Cần giữ lại ít nhất một khung giờ phát tin!', type: 'warning' });
+      return;
+    }
+    setTimeSlots(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateTimeSlot = (index, field, value) => {
+    setTimeSlots(prev => prev.map((slot, i) => i === index ? { ...slot, [field]: value } : slot));
+  };
+
+  const handleToggleDay = (dayNum) => {
+    setActiveDays(prev => {
+      if (prev.includes(dayNum)) {
+        if (prev.length <= 1) {
+          showToast({ title: 'Chọn ít nhất 1 ngày', message: 'Bạn phải kích hoạt ít nhất 1 ngày trong tuần!', type: 'warning' });
+          return prev;
+        }
+        return prev.filter(d => d !== dayNum);
+      } else {
+        return [...prev, dayNum].sort();
+      }
+    });
+  };
+
+  const applyPreset = (presetType) => {
+    if (presetType === 'office') {
+      setTimeSlots([{ start: '08:00', end: '11:30' }, { start: '13:30', end: '17:30' }]);
+      setActiveDays([1, 2, 3, 4, 5]);
+      showToast({ title: 'Đã nạp mẫu Giờ Hành Chính', message: 'Áp dụng 08:00-11:30 & 13:30-17:30 từ Thứ 2 đến Thứ 6. Hãy bấm "Lưu Cài Đặt" để kích hoạt!', type: 'info' });
+    } else if (presetType === 'golden') {
+      setTimeSlots([
+        { start: '08:30', end: '11:00' },
+        { start: '14:00', end: '17:00' },
+        { start: '19:30', end: '22:00' }
+      ]);
+      setActiveDays([1, 2, 3, 4, 5, 6, 7]);
+      showToast({ title: 'Đã nạp Khung Giờ Vàng', message: 'Áp dụng Sáng - Trưa - Tối cả tuần để đạt tỉ lệ đọc tin cao nhất.', type: 'info' });
+    } else if (presetType === 'daytime') {
+      setTimeSlots([{ start: '08:00', end: '22:30' }]);
+      setActiveDays([1, 2, 3, 4, 5, 6, 7]);
+      showToast({ title: 'Đã nạp Tránh Giờ Đêm', message: 'Tự động nghỉ từ 22:30 đến 08:00 sáng hôm sau để chống ban nick.', type: 'info' });
+    }
+  };
+
+  // Lưu cấu hình thời gian delay & khung giờ phát tin
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
+    const start = Date.now();
     try {
       await updateCampaignSettings(user.id, {
         group_delay_seconds: parseInt(groupDelay, 10),
         cycle_delay_seconds: parseInt(cycleDelay, 10),
-        forward_to_telegram: isVip ? forwardTelegram : false
+        forward_to_telegram: isVip ? forwardTelegram : false,
+        schedule_enabled: scheduleEnabled,
+        time_slots: timeSlots,
+        active_days: activeDays,
+        timezone: 'Asia/Ho_Chi_Minh'
       });
+      // Cập nhật trạng thái khung giờ tức thì
+      const st = await getCampaignStatus(user.id).catch(() => null);
+      if (st?.schedule) {
+        setScheduleStatus(st.schedule);
+      }
+      const elapsed = Date.now() - start;
+      if (elapsed < 500) await new Promise(r => setTimeout(r, 500 - elapsed));
       setSavedSuccess(true);
       showToast({
         title: 'Thành công',
-        message: 'Đã lưu cấu hình thời gian delay & chuyển tiếp!',
+        message: 'Đã lưu cấu hình thời gian delay & khung giờ phát tin!',
         type: 'success'
       });
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -559,25 +654,7 @@ export default function CampaignPage() {
                 <Info size={17} />
               </button>
             </div>
-            <p className="card-desc" style={{ marginTop: '4px' }}>
-              Điều chỉnh tốc độ gửi tin để bảo vệ nick Telegram không bị FloodWait hoặc ban
-            </p>
           </div>
-          <button 
-            onClick={handleSaveSettings} 
-            disabled={isSavingSettings}
-            className="btn btn-primary btn-sm" 
-            style={{ flexShrink: 0 }}
-          >
-            {isSavingSettings ? (
-              <Loader2 size={14} className="spin" />
-            ) : savedSuccess ? (
-              <Check size={14} />
-            ) : (
-              <Save size={14} />
-            )}
-            <span>{savedSuccess ? 'Đã Lưu Thành Công!' : 'Lưu Cài Đặt'}</span>
-          </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
@@ -613,63 +690,6 @@ export default function CampaignPage() {
                 accentColor: groupDelay < 60 ? '#ef4444' : groupDelay < 120 ? '#f59e0b' : '#10b981'
               }}
             />
-
-            {/* Trạng thái cảnh báo của Group Delay */}
-            {groupDelay < 60 ? (
-              <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                fontSize: '12px',
-                color: '#fca5a5'
-              }}>
-                <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <strong style={{ color: '#ef4444' }}>🔴 Nguy hiểm (Rủi ro cao):</strong> Dưới 60 giây rất dễ bị Telegram áp lệnh <strong>FloodWait</strong> hoặc chặn quyền gửi tin của tài khoản!
-                </div>
-              </div>
-            ) : groupDelay < 120 ? (
-              <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                fontSize: '12px',
-                color: '#fde68a'
-              }}>
-                <AlertCircle size={15} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <strong style={{ color: '#f59e0b' }}>🟡 Cảnh báo (Tốc độ nhanh):</strong> 60s – 119s chỉ nên dùng cho tài khoản lâu năm có độ Trust cao.
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                fontSize: '12px',
-                color: '#86efac'
-              }}>
-                <CheckCircle2 size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <strong style={{ color: '#34d399' }}>🟢 An toàn (Khuyên dùng):</strong> Từ 120s (2 phút) trở lên giúp nick gửi tin tự nhiên như người thật, chống bị khóa nick.
-                </div>
-              </div>
-            )}
           </div>
 
           {/* CỘT 2: Giãn cách giữa 2 chu kỳ (Cycle Delay) */}
@@ -704,67 +724,10 @@ export default function CampaignPage() {
                 accentColor: cycleDelay < 300 ? '#ef4444' : cycleDelay < 1200 ? '#f59e0b' : '#10b981'
               }}
             />
-
-            {/* Trạng thái cảnh báo của Cycle Delay */}
-            {cycleDelay < 300 ? (
-              <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                fontSize: '12px',
-                color: '#fca5a5'
-              }}>
-                <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <strong style={{ color: '#ef4444' }}>🔴 Nguy hiểm (Gửi dồn dập):</strong> Dưới 5 phút khiến nhóm nhận tin quá dồn dập, rất dễ bị Admin nhóm và Telegram chặn vĩnh viễn!
-                </div>
-              </div>
-            ) : cycleDelay < 1200 ? (
-              <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(245, 158, 11, 0.1)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                fontSize: '12px',
-                color: '#fde68a'
-              }}>
-                <AlertCircle size={15} color="#f59e0b" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <strong style={{ color: '#f59e0b' }}>🟡 Cảnh báo (Tần suất dày):</strong> 5 – 19 phút có thể khiến thành viên khó chịu và bấm Report Spam nếu số lượng nhóm ít.
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                fontSize: '12px',
-                color: '#86efac'
-              }}>
-                <CheckCircle2 size={15} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <strong style={{ color: '#34d399' }}>🟢 An toàn (Khuyên dùng):</strong> Từ 1200s (20 phút) trở lên là khoảng nghỉ lý tưởng sau khi đã rải hết một lượt nhóm.
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
-        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+        <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
           <label className="switch" style={{ opacity: isVip ? 1 : 0.6, cursor: isVip ? 'pointer' : 'not-allowed' }}>
             <input 
               type="checkbox" 
@@ -776,7 +739,7 @@ export default function CampaignPage() {
           </label>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '14px', color: 'var(--text-main)', fontWeight: '500' }}>
+              <span style={{ fontSize: '13.5px', color: 'var(--text-main)', fontWeight: '500' }}>
                 Tự động chuyển tiếp tin nhắn riêng của khách tới Telegram Admin
               </span>
               {!isVip && (
@@ -802,6 +765,24 @@ export default function CampaignPage() {
               </span>
             )}
           </div>
+        </div>
+
+        {/* Nút Lưu Cài Đặt ở góc dưới phải */}
+        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
+          <button 
+            onClick={handleSaveSettings} 
+            disabled={isSavingSettings}
+            className="btn btn-primary btn-sm"
+          >
+            {isSavingSettings ? (
+              <Loader2 size={14} className="spin" />
+            ) : savedSuccess ? (
+              <Check size={14} />
+            ) : (
+              <Save size={14} />
+            )}
+            <span>{savedSuccess ? 'Đã Lưu Thành Công!' : 'Lưu Cài Đặt'}</span>
+          </button>
         </div>
       </div>
 
@@ -1267,6 +1248,272 @@ export default function CampaignPage() {
           </div>
         </div>
 
+      </div>
+
+      {/* CÀI ĐẶT KHUNG GIỜ PHÁT TIN THÔNG MINH (SMART SCHEDULER) */}
+      <div className="card" style={{ marginTop: '20px', marginBottom: '20px' }}>
+        <div className="card-header-flex" style={{ marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h3 className="card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={18} color="var(--primary-light)" />
+              <span>Khung Giờ Phát Tin Tự Động</span>
+            </h3>
+            <span style={{
+              fontSize: '11px',
+              fontWeight: '700',
+              padding: '2px 8px',
+              borderRadius: '999px',
+              background: scheduleEnabled ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+              color: scheduleEnabled ? '#34d399' : 'var(--text-muted)',
+              border: `1px solid ${scheduleEnabled ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.3)'}`
+            }}>
+              {scheduleEnabled ? 'ĐANG BẬT' : 'CHƯA BẬT (CHẠY 24/7)'}
+            </span>
+          </div>
+
+          <label className="switch" title="Bật/Tắt chế độ phát theo khung giờ">
+            <input 
+              type="checkbox" 
+              checked={scheduleEnabled} 
+              onChange={(e) => setScheduleEnabled(e.target.checked)} 
+            />
+            <span className="slider"></span>
+          </label>
+        </div>
+
+        {/* Trạng thái hiện tại của Lịch trình */}
+        {scheduleEnabled && (
+          <div style={{
+            marginBottom: '16px',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            background: scheduleStatus?.is_in_window
+              ? 'rgba(16, 185, 129, 0.08)'
+              : 'rgba(99, 102, 241, 0.08)',
+            border: `1px solid ${scheduleStatus?.is_in_window ? 'rgba(16, 185, 129, 0.25)' : 'rgba(99, 102, 241, 0.25)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+              {scheduleStatus?.is_in_window ? (
+                <Sun size={16} color="#10b981" />
+              ) : (
+                <Moon size={16} color="#818cf8" />
+              )}
+              <span style={{ fontWeight: '600', color: scheduleStatus?.is_in_window ? '#34d399' : '#a5b4fc' }}>
+                {scheduleStatus?.is_in_window ? '🟢 Trong Giờ Hoạt Động' : '🌙 Đang Trong Giờ Nghỉ'}
+              </span>
+            </div>
+            {scheduleStatus?.next_run_at && !scheduleStatus?.is_in_window && (
+              <span style={{
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                background: 'var(--bg-input)',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-subtle)'
+              }}>
+                Tiếp tục lúc: <strong style={{ color: 'var(--primary-light)' }}>{scheduleStatus.next_run_at}</strong>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Cấu hình ngày trong tuần & Danh sách khung giờ */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '20px',
+          opacity: scheduleEnabled ? 1 : 0.65,
+          transition: 'opacity 0.2s ease'
+        }}>
+          {/* Cột Trái: Chọn ngày trong tuần */}
+          <div>
+            <label className="form-label" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Calendar size={14} color="var(--primary-light)" />
+              <span>Các ngày phát tin:</span>
+            </label>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[
+                { id: 1, label: 'Thứ 2' },
+                { id: 2, label: 'Thứ 3' },
+                { id: 3, label: 'Thứ 4' },
+                { id: 5, label: 'Thứ 5' },
+                { id: 6, label: 'Thứ 6' },
+                { id: 7, label: 'Thứ 7' },
+                { id: 0, label: 'Chủ Nhật' },
+              ].map(day => {
+                const dayNum = day.id === 0 ? 7 : day.id;
+                const isActive = activeDays.includes(dayNum);
+                return (
+                  <button
+                    key={day.label}
+                    type="button"
+                    onClick={() => handleToggleDay(dayNum)}
+                    style={{
+                      flex: '1 1 54px',
+                      padding: '7px 4px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: isActive ? '700' : '500',
+                      cursor: 'pointer',
+                      border: `2px solid ${isActive ? '#10b981' : 'var(--border-subtle)'}`,
+                      background: 'transparent',
+                      color: isActive ? '#34d399' : 'var(--text-muted)',
+                      transition: 'all 0.15s ease',
+                      textAlign: 'center'
+                    }}
+                  >
+                    {day.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Cột Phải: Các khung giờ trong ngày */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={14} color="var(--primary-light)" />
+                <span>Khung giờ ({timeSlots.length}/5):</span>
+              </label>
+              {timeSlots.length < 5 && (
+                <button
+                  type="button"
+                  onClick={handleAddTimeSlot}
+                  className="btn btn-secondary btn-xs"
+                  style={{ fontSize: '11.5px', padding: '3px 8px' }}
+                >
+                  <Plus size={12} />
+                  <span>Thêm khung</span>
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {timeSlots.map((slot, index) => {
+                const [startH, startM] = (slot.start || '08:00').split(':');
+                const [endH, endM] = (slot.end || '11:30').split(':');
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border-subtle)',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <span style={{
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: 'var(--primary-light)',
+                      minWidth: '54px'
+                    }}>
+                      Khung #{index + 1}
+                    </span>
+
+                    {/* Start Time (24h) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <select
+                        className="form-input"
+                        value={startH || '08'}
+                        onChange={(e) => handleUpdateTimeSlot(index, 'start', `${e.target.value}:${startM || '00'}`)}
+                        style={{ padding: '4px 6px', fontSize: '12px', width: '60px' }}
+                      >
+                        {HOURS.map(h => (
+                          <option key={h} value={h}>{h}h</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>:</span>
+                      <select
+                        className="form-input"
+                        value={startM || '00'}
+                        onChange={(e) => handleUpdateTimeSlot(index, 'start', `${startH || '08'}:${e.target.value}`)}
+                        style={{ padding: '4px 6px', fontSize: '12px', width: '54px' }}
+                      >
+                        {MINUTES.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>đến</span>
+
+                    {/* End Time (24h) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <select
+                        className="form-input"
+                        value={endH || '11'}
+                        onChange={(e) => handleUpdateTimeSlot(index, 'end', `${e.target.value}:${endM || '00'}`)}
+                        style={{ padding: '4px 6px', fontSize: '12px', width: '60px' }}
+                      >
+                        {HOURS.map(h => (
+                          <option key={h} value={h}>{h}h</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>:</span>
+                      <select
+                        className="form-input"
+                        value={endM || '00'}
+                        onChange={(e) => handleUpdateTimeSlot(index, 'end', `${endH || '11'}:${e.target.value}`)}
+                        style={{ padding: '4px 6px', fontSize: '12px', width: '54px' }}
+                      >
+                        {MINUTES.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {timeSlots.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTimeSlot(index)}
+                        className="btn-icon-subtle"
+                        style={{
+                          marginLeft: 'auto',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px'
+                        }}
+                        title="Xóa khung giờ này"
+                      >
+                        <Trash2 size={14} color="#ef4444" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Nút Lưu Lịch Phát ở góc dưới phải */}
+        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
+          <button 
+            onClick={handleSaveSettings} 
+            disabled={isSavingSettings}
+            className="btn btn-primary btn-sm" 
+          >
+            {isSavingSettings ? (
+              <Loader2 size={14} className="spin" />
+            ) : savedSuccess ? (
+              <Check size={14} />
+            ) : (
+              <Save size={14} />
+            )}
+            <span>{savedSuccess ? 'Đã Lưu Lịch!' : 'Lưu Lịch Phát'}</span>
+          </button>
+        </div>
       </div>
 
       {/* ============================================================ */}

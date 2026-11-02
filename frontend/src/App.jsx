@@ -22,6 +22,9 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import PricingPage from './pages/PricingPage';
 import ApiGuidePage from './pages/ApiGuidePage';
+import TermsPage from './pages/TermsPage';
+import AboutPage from './pages/AboutPage';
+import SupportWidget from './components/common/SupportWidget';
 import AdminSidebar from './components/admin/AdminSidebar';
 import AdminHeader from './components/admin/AdminHeader';
 import ConfirmModal from './components/common/ConfirmModal';
@@ -47,31 +50,8 @@ function AdminApp() {
   const [adminUser, setAdminUser] = useState(() => {
     const session = getAdminSession();
     if (session?.admin) return session.admin;
-    if (user && (user.email === 'admin@telepulse.io' || user.email === 'admin')) {
-      return {
-        id: 'admin_root',
-        username: user.email,
-        email: user.email,
-        role: 'admin',
-        full_name: 'Chủ Nền Tảng (System Administrator)'
-      };
-    }
     return null;
   });
-
-  // Tự động đảm bảo token admin luôn có trong localStorage cho API requests
-  useEffect(() => {
-    if (!localStorage.getItem('telepulse_admin_token')) {
-      localStorage.setItem('telepulse_admin_token', 'telepulse_admin_master_secret_2026');
-      localStorage.setItem('telepulse_admin_user', JSON.stringify({
-        id: 'admin_root',
-        username: user?.email || 'admin@telepulse.io',
-        email: user?.email || 'admin@telepulse.io',
-        role: 'admin',
-        full_name: 'System Administrator (Root)'
-      }));
-    }
-  }, [user]);
 
   const handleLogout = async () => {
     logoutAdmin();
@@ -270,6 +250,8 @@ function MainApp() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/guide/telegram-api" element={<ApiGuidePage />} />
           <Route path="/guide" element={<ApiGuidePage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
 
@@ -286,6 +268,9 @@ function MainApp() {
         />
 
         <TopRightToast />
+
+        {/* Nút Hỗ Trợ CSKH Trực Tuyến (Telegram / Zalo / Hotline) */}
+        <SupportWidget />
 
         {/* Thanh Điều Hướng Đáy Màn Hình Dành Riêng Cho Smartphone (<= 768px) */}
         <MobileBottomNav onNavigateTab={handleNavigateTab} />
@@ -323,6 +308,14 @@ function AppRouter() {
 
   if (location.pathname === '/guide/telegram-api' || location.pathname === '/guide') {
     return <ApiGuidePage />;
+  }
+
+  if (location.pathname === '/terms') {
+    return <TermsPage />;
+  }
+
+  if (location.pathname === '/about') {
+    return <AboutPage />;
   }
 
   // 1. Chưa đăng nhập:

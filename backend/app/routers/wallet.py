@@ -113,10 +113,18 @@ async def get_wallet_info(user_id: str):
         }
     }
 
+from app.services.admin_auth import require_admin
+from fastapi import Depends
+
 @router.post("/credit-manual")
-async def credit_manual(body: CreditManualBody):
-    """Cộng tiền thủ công cho tài khoản"""
-    new_bal = LocalWalletStore.credit_user(body.user_id, body.amount, int(time.time()), body.note)
+async def credit_manual(body: CreditManualBody, admin_id: str = Depends(require_admin)):
+    """Cộng tiền thủ công cho tài khoản (Chỉ dành riêng cho Quản trị viên hệ thống)"""
+    new_bal = PayOSService.credit_user_balance(
+        user_id=body.user_id,
+        amount=body.amount,
+        order_code=int(time.time() * 1000) % 9000000000 + 1000000000,
+        reference_id=f"ADMIN_MANUAL_{admin_id}"
+    )
     return {"success": True, "balance": new_bal}
 
 class UpgradeVipBody(BaseModel):
@@ -131,7 +139,7 @@ async def get_subscription_plans():
 
 @router.post("/upgrade-vip")
 async def upgrade_vip(body: UpgradeVipBody):
-    """Nâng cấp tài khoản lên VIP Pro (30 ngày) bằng số dư ví"""
+    """Nâng cấp tài khoản lên VIP Pro (30 ngày) bằng số dư ví (Supabase-First)"""
     from datetime import datetime, timedelta
     from app.services.activity_service import ActivityService
     from app.routers.admin import _load_plans
@@ -150,9 +158,12 @@ async def upgrade_vip(body: UpgradeVipBody):
     sb_bal = None
     if sb:
         try:
-            p_res = sb.table("profiles").select("balance").eq("id", user_id).single().execute()
-            if p_res.data and p_res.data.get("balance") is not None:
-                sb_bal = p_res.data["balance"]
+            p_res = sb.table("profiles").select("balance, subscription_tier, tier_expires_at").eq("id", user_id).single().execute()
+            if p_res.data:
+                if p_res.data.get("balance") is not None:
+                    sb_bal = p_res.data["balance"]
+                if p_res.data.get("tier_expires_at"):
+                    curr_expiry = p_res.data.get("tier_expires_at")
         except Exception as e:
             print(f"⚠️ Error reading profile balance: {e}")
 
@@ -183,16 +194,20 @@ async def upgrade_vip(body: UpgradeVipBody):
     new_balance = balance - cost
     new_expiry_str = new_expiry_dt.isoformat() + "Z"
 
-    # 4. Trừ tiền và cập nhật trạng thái trong Local Store
+    # 4. Trừ tiền và cập nhật trạng thái trong Supabase profiles và Local Store
     LocalWalletStore.set_balance(user_id, new_balance)
     LocalWalletStore.set_subscription(user_id, "VIP", new_expiry_str)
 
-    # Cập nhật số dư trong Supabase profiles
+    # Cập nhật số dư và gói VIP trực tiếp trong Supabase profiles
     if sb:
         try:
-            sb.table("profiles").update({"balance": new_balance}).eq("id", user_id).execute()
+            sb.table("profiles").update({
+                "balance": new_balance,
+                "subscription_tier": "VIP",
+                "tier_expires_at": new_expiry_str
+            }).eq("id", user_id).execute()
         except Exception as e:
-            print(f"⚠️ Error updating Supabase profile balance: {e}")
+            print(f"⚠️ Error updating Supabase profile balance and tier: {e}")
 
     # 5. Ghi log activity
     try:

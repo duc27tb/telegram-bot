@@ -16,6 +16,21 @@ DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "
 PLANS_FILE = os.path.join(DATA_DIR, "subscription_plans.json")
 
 def _load_plans() -> Dict[str, Any]:
+    # 1. Ưu tiên tải từ Supabase bảng subscription_plans
+    sb = get_supabase()
+    if sb:
+        try:
+            res = sb.table("subscription_plans").select("*").execute()
+            if res.data and len(res.data) > 0:
+                plans_dict = {}
+                for p in res.data:
+                    plan_key = "vip" if "vip" in p.get("id", "").lower() else "free"
+                    plans_dict[plan_key] = p
+                return plans_dict
+        except Exception:
+            pass
+
+    # 2. Fallback đọc file local nếu chưa tạo bảng
     os.makedirs(DATA_DIR, exist_ok=True)
     if not os.path.exists(PLANS_FILE):
         default_plans = {
@@ -49,6 +64,25 @@ def _load_plans() -> Dict[str, Any]:
         return {}
 
 def _save_plans(plans: Dict[str, Any]):
+    # 1. Đồng bộ lên Supabase subscription_plans
+    sb = get_supabase()
+    if sb:
+        try:
+            for key, plan_data in plans.items():
+                sb.table("subscription_plans").upsert({
+                    "id": plan_data.get("id", f"plan_{key}"),
+                    "name": plan_data.get("name", key),
+                    "price": plan_data.get("price", 0),
+                    "duration_days": plan_data.get("duration_days", 30),
+                    "max_accounts": plan_data.get("max_accounts", 1),
+                    "daily_broadcast_limit": plan_data.get("daily_broadcast_limit", 50),
+                    "features": plan_data.get("features", []),
+                    "updated_at": datetime.utcnow().isoformat() + "Z"
+                }).execute()
+        except Exception as e:
+            print(f"⚠️ [_save_plans] Lỗi lưu plans vào Supabase: {e}")
+
+    # 2. Lưu file local backup
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(PLANS_FILE, "w", encoding="utf-8") as f:
         json.dump(plans, f, ensure_ascii=False, indent=2)
@@ -77,11 +111,14 @@ class PlatformSettingsBody(BaseModel):
     bank_account_number: Optional[str] = "0869098696"
     bank_account_name: Optional[str] = "TRAN NGOC DUC"
     admin_alert_telegram: Optional[str] = "vhoang25"
+    support_telegram: Optional[str] = "vhoang25"
+    support_zalo: Optional[str] = "0869098696"
+    support_hotline: Optional[str] = "0869098696"
 
 
 from app.services.admin_auth import (
     require_admin, is_admin_user, get_user_role, get_admin_emails,
-    verify_admin_login, ADMIN_ROOT_USER, ADMIN_STATIC_TOKEN
+    verify_admin_login, ADMIN_ROOT_USER, generate_admin_token
 )
 
 class AdminLoginBody(BaseModel):
@@ -90,19 +127,20 @@ class AdminLoginBody(BaseModel):
 
 @router.post("/login")
 async def admin_login(body: AdminLoginBody):
-    """Cổng xác thực đăng nhập tài khoản Quản trị viên hệ thống (Fixed Account)"""
+    """Cổng xác thực đăng nhập tài khoản Quản trị viên hệ thống (Token HMAC-SHA256 có thời hạn)"""
     if not verify_admin_login(body.username, body.password):
         raise HTTPException(
             status_code=401,
             detail="Tài khoản hoặc mật khẩu Quản trị viên không chính xác!"
         )
+    token = generate_admin_token(body.username.strip(), role="admin")
     return {
         "success": True,
-        "token": ADMIN_STATIC_TOKEN,
+        "token": token,
         "admin": {
             "id": "admin_root",
             "username": body.username.strip(),
-            "email": ADMIN_ROOT_USER,
+            "email": body.username.strip() if "@" in body.username else ADMIN_ROOT_USER,
             "role": "admin",
             "full_name": "System Administrator (Root)"
         }
@@ -483,6 +521,9 @@ def _load_platform_settings() -> Dict[str, Any]:
             "bank_account_number": "0869098696",
             "bank_account_name": "TRAN NGOC DUC",
             "admin_alert_telegram": "vhoang25",
+            "support_telegram": "vhoang25",
+            "support_zalo": "0869098696",
+            "support_hotline": "0869098696",
             "system_mode": "operational",
             "updated_at": datetime.utcnow().isoformat()
         }
@@ -494,6 +535,21 @@ def _load_platform_settings() -> Dict[str, Any]:
             return json.load(f)
     except Exception:
         return {}
+
+
+@router.get("/public/support-info")
+async def get_public_support_info():
+    """Lấy thông tin hỗ trợ khách hàng công khai (Telegram, Zalo, Hotline) để hiển thị trên web (Public)"""
+    st = _load_platform_settings()
+    return {
+        "success": True,
+        "data": {
+            "support_telegram": st.get("support_telegram", "vhoang25"),
+            "support_zalo": st.get("support_zalo", "0869098696"),
+            "support_hotline": st.get("support_hotline", "0869098696"),
+            "bank_account_name": st.get("bank_account_name", "TRAN NGOC DUC")
+        }
+    }
 
 
 @router.get("/settings")
@@ -513,6 +569,9 @@ async def update_platform_settings(body: PlatformSettingsBody, admin_id: str = D
         "bank_account_number": body.bank_account_number or st.get("bank_account_number", "0869098696"),
         "bank_account_name": body.bank_account_name or st.get("bank_account_name", "TRAN NGOC DUC"),
         "admin_alert_telegram": body.admin_alert_telegram or st.get("admin_alert_telegram", "vhoang25"),
+        "support_telegram": body.support_telegram or st.get("support_telegram", "vhoang25"),
+        "support_zalo": body.support_zalo or st.get("support_zalo", "0869098696"),
+        "support_hotline": body.support_hotline or st.get("support_hotline", "0869098696"),
         "updated_at": datetime.utcnow().isoformat()
     })
     os.makedirs(DATA_DIR, exist_ok=True)

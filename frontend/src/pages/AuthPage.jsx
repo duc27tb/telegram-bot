@@ -356,6 +356,23 @@ export default function AuthPage({ defaultMode = 'login', onBackToLanding }) {
               {authMode === 'forgot' && 'Gửi Liên Kết Khôi Phục'}
             </span>
           </button>
+
+          {authMode === 'register' && (
+            <p style={{
+              fontSize: '11.5px',
+              color: 'var(--text-muted, #94a3b8)',
+              textAlign: 'center',
+              marginTop: '12px',
+              marginBottom: 0,
+              lineHeight: 1.5
+            }}>
+              Bằng việc đăng ký, bạn đồng ý với{' '}
+              <Link to="/terms" target="_blank" style={{ color: 'var(--primary-light)', textDecoration: 'underline' }}>
+                Điều khoản dịch vụ & Miễn trừ trách nhiệm
+              </Link>{' '}
+              của TelePulse.
+            </p>
+          )}
         </form>
 
         {/* Footer chuyển đổi qua lại giữa các màn hình */}

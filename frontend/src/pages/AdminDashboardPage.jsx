@@ -71,7 +71,10 @@ export default function AdminDashboardPage({ activeTab = 'overview', setActiveTa
     bank_name: 'MBBank (Ngân hàng Quân Đội)',
     bank_account_number: '0869098696',
     bank_account_name: 'TRAN NGOC DUC',
-    admin_alert_telegram: 'vhoang25'
+    admin_alert_telegram: 'vhoang25',
+    support_telegram: 'vhoang25',
+    support_zalo: '0869098696',
+    support_hotline: '0869098696'
   });
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -1230,6 +1233,97 @@ export default function AdminDashboardPage({ activeTab = 'overview', setActiveTa
               <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'block' }}>
                 Bot TelePulse sẽ gửi thông báo tức thì về tài khoản này khi có khách nạp tiền hoặc đăng ký mới.
               </span>
+            </div>
+
+            {/* CẤU HÌNH KÊNH CHĂM SÓC KHÁCH HÀNG (CSKH) */}
+            <div style={{
+              marginTop: '16px',
+              paddingTop: '20px',
+              borderTop: '1px solid rgba(148, 163, 184, 0.15)'
+            }}>
+              <h4 style={{ fontSize: '14px', fontWeight: '800', color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>🎧 Kênh Chăm Sóc Khách Hàng (Hiển thị cho người dùng & trang chủ)</span>
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+                {/* 1. Support Telegram */}
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
+                    Telegram CSKH (Username hoặc Link):
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input input-field"
+                    placeholder="Ví dụ: vhoang25 hoặc telepulse_cskh"
+                    value={settingsData.support_telegram || ''}
+                    onChange={(e) => setSettingsData({ ...settingsData, support_telegram: e.target.value })}
+                    style={{
+                      width: '100%',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      background: 'var(--bg-input, rgba(15, 23, 42, 0.8))',
+                      border: '1px solid var(--border-medium, rgba(148, 163, 184, 0.25))',
+                      color: 'var(--text-main, #f8fafc)',
+                      fontSize: '13px'
+                    }}
+                  />
+                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                    Nút Chat Telegram trên web sẽ dẫn đến t.me/[username này]
+                  </span>
+                </div>
+
+                {/* 2. Support Zalo */}
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
+                    Zalo CSKH (Số điện thoại hoặc Link Zalo):
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input input-field"
+                    placeholder="Ví dụ: 0869098696 hoặc https://zalo.me/..."
+                    value={settingsData.support_zalo || ''}
+                    onChange={(e) => setSettingsData({ ...settingsData, support_zalo: e.target.value })}
+                    style={{
+                      width: '100%',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      background: 'var(--bg-input, rgba(15, 23, 42, 0.8))',
+                      border: '1px solid var(--border-medium, rgba(148, 163, 184, 0.25))',
+                      color: 'var(--text-main, #f8fafc)',
+                      fontSize: '13px'
+                    }}
+                  />
+                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                    Nút Chat Zalo trên widget sẽ mở trực tiếp cuộc trò chuyện Zalo
+                  </span>
+                </div>
+
+                {/* 3. Support Hotline */}
+                <div>
+                  <label style={{ fontSize: '12.5px', fontWeight: '700', color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
+                    Hotline Hỗ Trợ Kỹ Thuật:
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input input-field"
+                    placeholder="Ví dụ: 0869.098.696"
+                    value={settingsData.support_hotline || ''}
+                    onChange={(e) => setSettingsData({ ...settingsData, support_hotline: e.target.value })}
+                    style={{
+                      width: '100%',
+                      borderRadius: '10px',
+                      padding: '10px 14px',
+                      background: 'var(--bg-input, rgba(15, 23, 42, 0.8))',
+                      border: '1px solid var(--border-medium, rgba(148, 163, 184, 0.25))',
+                      color: 'var(--text-main, #f8fafc)',
+                      fontSize: '13px'
+                    }}
+                  />
+                  <span style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                    Số điện thoại để khách hàng bấm gọi trực tiếp khi khẩn cấp
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>

@@ -17,7 +17,7 @@ try:
 except RuntimeError:
     asyncio.set_event_loop(asyncio.new_event_loop())
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 from pyrogram import Client, filters, errors as pyrogram_errors
 from pyrogram.types import Message
 from app.database import get_supabase
@@ -106,6 +106,93 @@ def format_telegram_error_vi(err_str: str) -> str:
     clean = re.sub(r'Telegram says:\s*\[\d+\s+([A-Z_]+)\]\s*-\s*', '', err_str)
     clean = re.sub(r'\(caused by ".*?"\)', '', clean).strip()
     return clean or "Lỗi kết nối gửi tin Telegram"
+
+def check_schedule_window(camp_settings: Dict[str, Any]) -> Tuple[bool, int, str, str]:
+    """
+    Kiểm tra thời điểm hiện tại (GMT+7) có nằm trong khung giờ phát tin hay không.
+    Trả về: (is_active_window: bool, wait_seconds: int, status_message: str, next_time_str: str)
+    """
+    if not camp_settings.get("schedule_enabled", False):
+        return (True, 0, "Chế độ hẹn giờ đang tắt (Chạy liên tục)", "")
+
+    # Múi giờ Việt Nam GMT+7
+    tz_vietnam = timezone(timedelta(hours=7))
+    now_vn = datetime.now(tz_vietnam)
+    curr_weekday = now_vn.isoweekday() # 1 = Thứ 2, ..., 7 = Chủ Nhật
+    curr_minutes = now_vn.hour * 60 + now_vn.minute
+
+    active_days = camp_settings.get("active_days")
+    if not active_days or not isinstance(active_days, list):
+        active_days = [1, 2, 3, 4, 5, 6, 7]
+
+    time_slots = camp_settings.get("time_slots")
+    if not time_slots or not isinstance(time_slots, list):
+        time_slots = [
+            {"start": "08:00", "end": "11:30"},
+            {"start": "13:30", "end": "18:00"}
+        ]
+
+    parsed_slots = []
+    for s in time_slots:
+        try:
+            start_parts = s.get("start", "08:00").split(":")
+            end_parts = s.get("end", "22:00").split(":")
+            s_min = int(start_parts[0]) * 60 + int(start_parts[1])
+            e_min = int(end_parts[0]) * 60 + int(end_parts[1])
+            if s_min < e_min:
+                parsed_slots.append((s_min, e_min, s.get("start"), s.get("end")))
+        except Exception:
+            pass
+
+    if not parsed_slots:
+        return (True, 0, "Khung giờ cấu hình không hợp lệ, đang chạy bình thường", "")
+
+    parsed_slots.sort(key=lambda x: x[0])
+
+    # 1. Kiểm tra ngày hiện tại có phải ngày được phép chạy không
+    if curr_weekday in active_days:
+        for s_min, e_min, s_str, e_str in parsed_slots:
+            if s_min <= curr_minutes < e_min:
+                return (True, 0, f"Đang trong khung giờ phát tin ({s_str} - {e_str})", "")
+
+    # 2. Nếu không nằm trong slot nào, tìm slot tiếp theo gần nhất trong ngày hôm nay
+    if curr_weekday in active_days:
+        for s_min, e_min, s_str, e_str in parsed_slots:
+            if curr_minutes < s_min:
+                diff_min = s_min - curr_minutes
+                wait_sec = diff_min * 60 - now_vn.second
+                return (
+                    False, 
+                    max(10, wait_sec), 
+                    f"Đang tạm nghỉ theo lịch. Sẽ tiếp tục ca phát tin lúc {s_str} hôm nay",
+                    f"{s_str} hôm nay"
+                )
+
+    # 3. Không còn slot nào hôm nay -> Tìm ngày hoạt động tiếp theo
+    day_offset = 1
+    day_names = {1: "Thứ 2", 2: "Thứ 3", 3: "Thứ 4", 4: "Thứ 5", 5: "Thứ 6", 6: "Thứ 7", 7: "Chủ Nhật"}
+    while day_offset <= 7:
+        next_wday = (curr_weekday + day_offset - 1) % 7 + 1
+        if next_wday in active_days:
+            first_slot = parsed_slots[0]
+            first_s_min, _, first_s_str, _ = first_slot
+            
+            minutes_until_midnight = 1440 - curr_minutes
+            extra_days_minutes = (day_offset - 1) * 1440
+            total_wait_min = minutes_until_midnight + extra_days_minutes + first_s_min
+            wait_sec = total_wait_min * 60 - now_vn.second
+            
+            next_day_name = "ngày mai" if day_offset == 1 else f"{day_names.get(next_wday, 'ngày tới')}"
+            
+            return (
+                False,
+                max(10, wait_sec),
+                f"Đang nghỉ ngoài giờ. Sẽ tự động tiếp tục lúc {first_s_str} ({next_day_name})",
+                f"{first_s_str} ({next_day_name})"
+            )
+        day_offset += 1
+
+    return (True, 0, "Không có ngày hoạt động nào được chọn trong cấu hình", "")
 
 class PyrogramEngine:
     def __init__(self):
@@ -463,7 +550,7 @@ class PyrogramEngine:
                 curr_unread = conv_res.data[0].get("unread_count") or 0
                 new_unread = (curr_unread + 1) if sender_type == "customer" else 0
                 sb.table("customer_conversations").update({
-                    "last_message": content,
+                    "last_message": f"<<<FROM:{sender_type}>>>{content}",
                     "updated_at": "now()",
                     "unread_count": new_unread
                 }).eq("id", conv_id).execute()
@@ -474,7 +561,7 @@ class PyrogramEngine:
                     "sender_id": sender_id,
                     "sender_name": sender_name or "Khách hàng",
                     "sender_username": sender_username,
-                    "last_message": content,
+                    "last_message": f"<<<FROM:{sender_type}>>>{content}",
                     "unread_count": 1 if sender_type == "customer" else 0
                 }).execute()
                 conv_id = new_conv.data[0]["id"]
@@ -547,7 +634,7 @@ class PyrogramEngine:
 
                 if not resolved:
                     try:
-                        async for _ in client.get_dialogs(limit=20):
+                        async for _ in client.get_dialogs(limit=50):
                             pass
                         msg = await client.get_messages(chat_id=chat_id, message_ids=message_id)
                     except Exception:
@@ -653,20 +740,14 @@ class PyrogramEngine:
             target_peer = chat_id
             try:
                 try:
-                    await client.get_chat(target_peer)
+                    await client.resolve_peer(target_peer)
                 except Exception:
-                    target_un = (conv.get("sender_username") or "").replace("@", "").strip()
-                    if target_un:
-                        u = await client.get_users(target_un)
-                        target_peer = u.id
-            except Exception:
-                pass
-
-            # Tự động dọn dẹp các dòng fallback cũ nếu có
-            try:
-                sb.table("chat_messages").delete().eq("conversation_id", conv_id).eq("content", "[Phương tiện / Tệp đính kèm]").execute()
-            except Exception:
-                pass
+                    # Tự động nạp danh sách hội thoại gần nhất để làm ấm (warm-up) bộ nhớ peer cache của Pyrogram
+                    async for d in client.get_dialogs(limit=50):
+                        if d.chat.id == target_peer:
+                            break
+            except Exception as peer_err:
+                print(f"⚠️ [sync_chat_history warm-up] {peer_err}")
 
             from collections import Counter
             existing = sb.table("chat_messages").select("content, sender_type").eq("conversation_id", conv_id).execute().data or []
@@ -682,6 +763,7 @@ class PyrogramEngine:
             all_msgs.reverse()
             added_count = 0
             last_text = ""
+            last_sender_type = "customer"
 
             for m in all_msgs:
                 is_me = m.outgoing or getattr(m.from_user, "is_self", False)
@@ -723,6 +805,7 @@ class PyrogramEngine:
 
                 stored_content = f"{reply_tag}{media_tag}{msg_text}".strip()
                 last_text = stored_content
+                last_sender_type = s_type
 
                 # Bỏ qua nếu tin nhắn này đã tồn tại trong CSDL (chính xác từng tin nhắn, không loại nhầm từ ngắn)
                 msg_key = (stored_content, s_type)
@@ -746,7 +829,7 @@ class PyrogramEngine:
 
             if last_text:
                 sb.table("customer_conversations").update({
-                    "last_message": last_text,
+                    "last_message": f"<<<FROM:{last_sender_type}>>>{last_text}",
                     "updated_at": "now()"
                 }).eq("id", conv_id).execute()
 
@@ -862,6 +945,35 @@ class PyrogramEngine:
                 group_delay = max(5, settings.get("group_delay_seconds", 120))
                 cycle_delay = max(30, settings.get("cycle_delay_seconds", 1200))
 
+                # 1.1 Kiểm tra Khung giờ Hẹn giờ thông minh (Smart Scheduler)
+                is_in_window, wait_sec, sched_msg, next_time = check_schedule_window(settings)
+                if not is_in_window:
+                    print(f"🌙 [Scheduler] User {user_id}: {sched_msg} (Ngủ {wait_sec}s)")
+                    try:
+                        sb.table("bot_logs").insert({
+                            "user_id": user_id,
+                            "account_id": None,
+                            "log_type": "info",
+                            "message": f"🌙 [Hẹn Giờ Thông Minh] {sched_msg}."
+                        }).execute()
+                    except Exception:
+                        pass
+
+                    # Ngủ ngắt quãng 15s/lần để nếu user bấm Tắt bot hoặc Tắt hẹn giờ thì phản hồi ngay
+                    while wait_sec > 0:
+                        step = min(15, wait_sec)
+                        await asyncio.sleep(step)
+                        wait_sec -= step
+
+                        c_check = sb.table("campaign_settings").select("is_running, schedule_enabled").eq("user_id", user_id).execute()
+                        if not c_check.data or not c_check.data[0].get("is_running", False):
+                            print(f"⏹️ [Campaign Scheduler] User {user_id} đã bấm Dừng trong lúc đang nghỉ hẹn giờ.")
+                            return
+                        if not c_check.data[0].get("schedule_enabled", False):
+                            print(f"⚡ [Campaign Scheduler] User {user_id} đã Tắt hẹn giờ, tiếp tục rải tin ngay lập tức!")
+                            break
+                    continue
+
                 # 2. Đọc kho mẫu tin nhắn (Spintax)
                 tmpl_res = sb.table("message_templates").select("content").eq("user_id", user_id).eq("is_active", True).execute()
                 messages_pool = [t["content"] for t in tmpl_res.data] if tmpl_res.data else []
@@ -932,15 +1044,12 @@ class PyrogramEngine:
                     saved_sent_ids = set(cp.get("sent_chat_ids", []))
                     time_passed = now_ts - saved_start_time
 
-                    # Nếu thời gian từ lúc gửi nhóm 1 đã vượt quá chu kỳ cài đặt (ví dụ 2 tiếng):
-                    # Tự động reset và bắt đầu chu kỳ mới toanh từ nhóm 1!
                     if time_passed >= cycle_delay:
                         print(f"🔄 [Campaign] Chu kỳ cũ đã hết hạn ({int(time_passed)}s >= {cycle_delay}s). Bắt đầu vòng mới từ nhóm 1.")
                         cycle_start_time = now_ts
                         sent_chat_ids = set()
                         CampaignCheckpointService.clear_checkpoint(user_id)
                     else:
-                        # Chu kỳ cũ vẫn còn hiệu lực (chưa đủ 2 tiếng) -> Tiếp tục gửi từ nhóm dở dang!
                         cycle_start_time = saved_start_time
                         sent_chat_ids = saved_sent_ids
                         remaining_count = len([g for g in all_groups if g["chat_id"] not in sent_chat_ids])
@@ -958,8 +1067,8 @@ class PyrogramEngine:
                 cycle_sent_count = 0
                 cycle_error_count = 0
 
-                # 5. Phân phối nhóm & Chạy từng tài khoản Telegram
-                for acc_idx, acc in enumerate(accounts):
+                # 5. Phân phối nhóm & Chạy ĐỒNG THỜI SONG SONG tất cả tài khoản Telegram
+                async def _send_for_account(acc_idx: int, acc: dict) -> Tuple[int, int]:
                     acc_id = acc["id"]
                     phone = acc.get("phone_number", "Unknown")
 
@@ -970,33 +1079,33 @@ class PyrogramEngine:
                     if acc_groups:
                         target_groups_for_acc = acc_groups
                     elif shared_groups:
-                        # Chia đều nhóm chung cho các tài khoản
                         target_groups_for_acc = [g for idx, g in enumerate(shared_groups) if idx % len(accounts) == acc_idx] or shared_groups
                     else:
-                        continue
+                        return 0, 0
 
                     if not target_groups_for_acc:
-                        continue
+                        return 0, 0
 
                     client = await self.get_or_start_client(acc)
                     if not client:
                         print(f"⚠️ [Campaign] Không thể kết nối client cho tài khoản {phone}")
-                        continue
+                        return 0, 0
+
+                    acc_sent = 0
+                    acc_err = 0
 
                     for idx, grp in enumerate(target_groups_for_acc):
-                        # Cơ chế bảo vệ 1: Nếu người dùng vừa bấm Dừng tài khoản này thì lập tức ngắt gửi
                         if acc_id not in self.active_clients:
-                            print(f"⏹️ [Campaign] Tài khoản {phone} đã được người dùng tắt (Offline). Lập tức dừng gửi sang các nhóm tiếp theo.")
+                            print(f"⏹️ [Campaign] Tài khoản {phone} đã được người dùng tắt (Offline). Lập tức dừng gửi.")
                             break
 
                         chat_id = grp["chat_id"]
                         g_title = grp.get("group_title") or str(chat_id)
 
-                        # Bỏ qua nhóm đã gửi thành công trong chu kỳ hiện tại (Resume checkpoint)
                         if chat_id in sent_chat_ids:
                             continue
 
-                        # 0. Bỏ qua nhóm rác / nhóm chat riêng dưới 5 thành viên (Tránh spam nhóm 1 người, nhóm trung gian cũ)
+                        # Filter Low Member
                         from app.services.group_link_cache import GroupLinkCache
                         cached_meta = GroupLinkCache.get_link(chat_id)
                         members_count = grp.get("members_count") or (cached_meta.get("members_count") if cached_meta else None)
@@ -1004,36 +1113,30 @@ class PyrogramEngine:
                             print(f"⏩ [Filter Low-Member] Tự động bỏ qua nhóm '{g_title}' ({chat_id}) vì chỉ có {members_count} thành viên (< 5 người).")
                             continue
 
-                        # Thuật toán Circuit Breaker: Tự động bỏ qua nhóm không khả dụng
+                        # Circuit Breaker: Tự động bỏ qua nhóm không khả dụng
                         user_cb = self.circuit_breakers.setdefault(user_id, {})
                         grp_cb = user_cb.get(chat_id, {})
 
-                        # 1. Bỏ qua nhóm khóa chat (CHAT_WRITE_FORBIDDEN - Chỉ Admin gửi) từ chu kỳ 2 trở đi
                         if grp_cb.get("forbidden", False):
                             print(f"⏩ [Circuit Breaker] Tự động bỏ qua nhóm '{g_title}' ({chat_id}) vì nhóm đã khóa chat (chỉ Admin mới có quyền gửi).")
                             continue
 
-                        # 2. Bỏ qua nhóm bị cấm chat (USER_BANNED_IN_CHANNEL) từ chu kỳ 3 trở đi (đã lỗi liên tiếp 2 chu kỳ)
                         if grp_cb.get("banned_count", 0) >= 2:
                             print(f"⏩ [Circuit Breaker] Tự động bỏ qua nhóm '{g_title}' ({chat_id}) vì nick đã bị cấm chat liên tiếp {grp_cb['banned_count']} chu kỳ.")
                             continue
 
                         try:
-                            # Phân tích cú pháp Spintax ngẫu nhiên (UC-14 & NUI-02)
                             raw_template = random.choice(messages_pool)
                             final_message = parse_spintax(raw_template)
 
                             await client.send_message(chat_id=chat_id, text=final_message)
-                            cycle_sent_count += 1
+                            acc_sent += 1
                             sent_chat_ids.add(chat_id)
-                            # Cập nhật checkpoint ngay khi gửi thành công để không bao giờ bị mất dấu
                             CampaignCheckpointService.mark_group_sent(user_id, chat_id, cycle_start_time, cycle_delay)
 
-                            # Khi gửi thành công: Xóa trạng thái lỗi khỏi Circuit Breaker
                             if user_id in self.circuit_breakers and chat_id in self.circuit_breakers[user_id]:
                                 del self.circuit_breakers[user_id][chat_id]
 
-                            # Xóa lỗi trong target_groups nếu cột tồn tại
                             try:
                                 sb.table("target_groups").update({"last_error": None, "last_error_at": None}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
                             except Exception:
@@ -1047,24 +1150,21 @@ class PyrogramEngine:
                             }).execute()
 
                         except pyrogram_errors.FloodWait as fw:
-                            cycle_error_count += 1
-                            wait_sec = fw.value
-                            print(f"⚠️ [Campaign] Tài khoản {phone} bị Telegram tạm hoãn FloodWait ({wait_sec}s)")
+                            acc_err += 1
+                            wait_sec_fw = fw.value
+                            print(f"⚠️ [Campaign] Tài khoản {phone} bị Telegram tạm hoãn FloodWait ({wait_sec_fw}s)")
                             sb.table("bot_logs").insert({
                                 "user_id": user_id,
                                 "account_id": acc_id,
                                 "log_type": "warning",
-                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- Bị Telegram tạm giới hạn FloodWait (cần nghỉ {wait_sec}s)"
+                                "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- Bị Telegram tạm giới hạn FloodWait (cần nghỉ {wait_sec_fw}s)"
                             }).execute()
-                            # Tạm dừng gửi trên tài khoản này trong chu kỳ hiện tại
                             break
 
                         except pyrogram_errors.ChatWriteForbidden:
-                            cycle_error_count += 1
+                            acc_err += 1
                             err_msg = "Nhóm đã khóa chat (chỉ Admin mới có quyền gửi tin)"
                             now_iso = datetime.now(timezone.utc).isoformat()
-
-                            # Đánh dấu nhóm khóa chat: Từ chu kỳ 2 trở đi bỏ qua nhóm này luôn
                             user_cb = self.circuit_breakers.setdefault(user_id, {})
                             user_cb[chat_id] = {
                                 "forbidden": True,
@@ -1072,12 +1172,10 @@ class PyrogramEngine:
                                 "last_error": err_msg,
                                 "last_error_at": now_iso
                             }
-
                             try:
                                 sb.table("target_groups").update({"last_error": err_msg, "last_error_at": now_iso}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
                             except Exception:
                                 pass
-
                             sb.table("bot_logs").insert({
                                 "user_id": user_id,
                                 "account_id": acc_id,
@@ -1086,12 +1184,11 @@ class PyrogramEngine:
                             }).execute()
 
                         except Exception as e:
-                            cycle_error_count += 1
+                            acc_err += 1
                             err_str = str(e)
                             err_vi = format_telegram_error_vi(err_str)
                             now_iso = datetime.now(timezone.utc).isoformat()
 
-                            # Kiểm tra nếu là lỗi phiên nghiêm trọng (Trùng phiên, phiên bị hủy, nick bị ban)
                             is_fatal_session = any(k in err_str for k in [
                                 "AUTH_KEY_DUPLICATED", "AUTH_KEY_UNREGISTERED", "SESSION_REVOKED", "USER_DEACTIVATED", "SESSION_EXPIRED"
                             ])
@@ -1111,25 +1208,21 @@ class PyrogramEngine:
                                     "log_type": "error",
                                     "message": f"[{phone}] Phiên đăng nhập bị ngắt ({err_vi}). Trạng thái tài khoản đã chuyển sang Báo Lỗi, vui lòng bấm 'Đăng Nhập Lại'."
                                 }).execute()
-                                # Dừng gửi tiếp các nhóm khác của tài khoản này
                                 break
 
                             user_cb = self.circuit_breakers.setdefault(user_id, {})
                             curr_stat = user_cb.get(chat_id, {"banned_count": 0, "forbidden": False})
-
                             err_str_upper = err_str.upper()
                             if "USER_BANNED_IN_CHANNEL" in err_str_upper:
                                 curr_stat["banned_count"] = curr_stat.get("banned_count", 0) + 1
                                 curr_stat["last_error"] = err_vi
                                 curr_stat["last_error_at"] = now_iso
                                 user_cb[chat_id] = curr_stat
-                                print(f"⚠️ [Circuit Breaker] Nhóm '{g_title}' ghi nhận cấm chat lần {curr_stat['banned_count']}/2 (Chu kỳ 3 sẽ tự động bỏ qua)")
                             elif "CHAT_WRITE_FORBIDDEN" in err_str_upper or "PEER_ID_INVALID" in err_str_upper or "CHAT_INVALID" in err_str_upper or "CHANNEL_INVALID" in err_str_upper:
                                 curr_stat["forbidden"] = True
                                 curr_stat["last_error"] = err_vi
                                 curr_stat["last_error_at"] = now_iso
                                 user_cb[chat_id] = curr_stat
-                                print(f"⚠️ [Circuit Breaker] Nhóm '{g_title}' khóa chat hoặc không tồn tại/đã giải tán (Chu kỳ sau sẽ tự động bỏ qua)")
                             else:
                                 curr_stat["last_error"] = err_vi
                                 curr_stat["last_error_at"] = now_iso
@@ -1147,13 +1240,25 @@ class PyrogramEngine:
                                 "message": f"[{phone}] Lỗi gửi tới nhóm '{g_title}' ---- {err_vi}"
                             }).execute()
 
-                        # Cơ chế bảo vệ 2: Giãn cách thời gian ngẫu nhiên chống khóa nick (NUI-03 Anti-Ban Jitter)
-                        # Đọc thời gian giãn cách cập nhật động ngay lập tức nếu người dùng vừa thay đổi trong lúc spam
+                        # Anti-Ban Jitter per account
                         if idx < len(target_groups_for_acc) - 1:
                             effective_delay = self.custom_user_delays.get(user_id, group_delay)
                             jitter = random.uniform(-0.15, 0.20) * effective_delay
                             actual_delay = max(5.0, effective_delay + jitter)
                             await asyncio.sleep(actual_delay)
+
+                    return acc_sent, acc_err
+
+                # Kích hoạt chạy đồng thời song song tất cả các tài khoản Telegram
+                acc_tasks = [_send_for_account(acc_idx, acc) for acc_idx, acc in enumerate(accounts)]
+                acc_results = await asyncio.gather(*acc_tasks, return_exceptions=True)
+
+                for res in acc_results:
+                    if isinstance(res, tuple):
+                        cycle_sent_count += res[0]
+                        cycle_error_count += res[1]
+                    elif isinstance(res, Exception):
+                        print(f"⚠️ [Campaign Account Worker Error] {res}")
 
                 # Báo cáo hoàn tất chu kỳ qua Telegram Alert
                 try:

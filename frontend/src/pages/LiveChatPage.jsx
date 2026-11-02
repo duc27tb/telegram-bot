@@ -41,6 +41,9 @@ export default function LiveChatPage() {
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const PAGE_SIZE = 30;
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -70,11 +73,19 @@ export default function LiveChatPage() {
 
   // Hàm bóc tách gói tin nhắn chứa thẻ Reply và Media
   const parseMessagePayload = (rawContent) => {
-    if (!rawContent) return { reply: null, media: null, text: '' };
+    if (!rawContent) return { reply: null, media: null, text: '', senderFrom: null };
 
     let content = rawContent;
     let reply = null;
     let media = null;
+    let senderFrom = null;
+
+    // 0. Tag Người gửi: <<<FROM:admin>>> hoặc <<<FROM:customer>>>
+    const fromMatch = content.match(/^<<<FROM:(.*?)>>>/);
+    if (fromMatch) {
+      senderFrom = fromMatch[1];
+      content = content.slice(fromMatch[0].length);
+    }
 
     // 1. Tag Reply: <<<REPLY:Sender||Text>>>
     const replyMatch = content.match(/^<<<REPLY:(.*?)\|\|([\s\S]*?)>>>\n?/);
@@ -98,7 +109,7 @@ export default function LiveChatPage() {
       content = content.slice(mediaMatch[0].length);
     }
 
-    return { reply, media, text: content.trim() };
+    return { reply, media, text: content.trim(), senderFrom };
   };
 
   // Trợ giúp định dạng dung lượng file
@@ -112,8 +123,9 @@ export default function LiveChatPage() {
   // Trợ giúp hiển thị preview văn bản ở danh sách hội thoại
   const getPreviewText = (raw) => {
     if (!raw) return 'Chưa có nội dung';
-    const { reply, media, text } = parseMessagePayload(raw);
-    const prefix = reply ? '↳ ' : '';
+    const { reply, media, text, senderFrom } = parseMessagePayload(raw);
+    const isFromMe = senderFrom === 'admin' || senderFrom === 'user';
+    const prefix = isFromMe ? 'You: ' : (reply ? '↳ ' : '');
     if (media) {
       if (media.type === 'photo') return `${prefix}🖼️ [Hình ảnh] ${text}`.trim();
       if (media.type === 'document') return `${prefix}📄 [Tệp] ${media.fileName || text}`.trim();
@@ -465,29 +477,65 @@ export default function LiveChatPage() {
     }
   };
 
-  // 2. Tải tin nhắn của hội thoại đang chọn
+  // 2. Tải tin nhắn gần nhất của hội thoại đang chọn (Mặc định 30 tin nhắn mới nhất trong 24h)
   const fetchMessages = async (convId, isAuto = false) => {
     try {
-      const { data } = await supabase
+      const { data, count } = await supabase
         .from('chat_messages')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('conversation_id', convId)
-        .order('created_at', { ascending: true });
-      if (data) {
-        setMessages(data);
-        setTimeout(() => scrollToBottom(!isAuto), 50);
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
 
-        // Nếu phát hiện tin nhắn cũ bị lưu literal '[Phương tiện / Tệp đính kèm]', tự động đồng bộ ngầm để kéo ảnh xịn về
-        const hasLegacyFallback = data.some(m => m.content && m.content.includes('[Phương tiện / Tệp đính kèm]'));
-        if (hasLegacyFallback && !isAuto) {
-          const targetConv = (activeConv && activeConv.id === convId) ? activeConv : conversations.find(c => c.id === convId);
-          if (targetConv) {
-            handleSyncTelegramHistory(targetConv, true);
-          }
+      if (data) {
+        const chronological = [...data].reverse();
+        setMessages(chronological);
+        setHasMoreOlder((count || 0) > data.length);
+        if (!isAuto) {
+          setTimeout(() => scrollToBottom(false), 50);
         }
       }
     } catch (e) {
       console.error('Lỗi lấy tin nhắn:', e);
+    }
+  };
+
+  // Tải thêm tin nhắn cũ hơn khi cuộn lên trên (Infinite Scroll-Up)
+  const loadOlderMessages = async () => {
+    if (!activeConv || loadingOlder || !hasMoreOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    const container = messagesContainerRef.current;
+    const oldScrollHeight = container ? container.scrollHeight : 0;
+    const oldScrollTop = container ? container.scrollTop : 0;
+
+    try {
+      const oldestMsg = messages[0];
+      const { data } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('conversation_id', activeConv.id)
+        .lt('created_at', oldestMsg.created_at)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+
+      if (data && data.length > 0) {
+        const olderChronological = [...data].reverse();
+        setMessages(prev => [...olderChronological, ...prev]);
+        setHasMoreOlder(data.length === PAGE_SIZE);
+
+        setTimeout(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop;
+          }
+        }, 30);
+      } else {
+        setHasMoreOlder(false);
+      }
+    } catch (e) {
+      console.error('Lỗi tải tin nhắn cũ:', e);
+    } finally {
+      setLoadingOlder(false);
     }
   };
 
@@ -544,8 +592,6 @@ export default function LiveChatPage() {
           if (fetchUnreadChatCount) fetchUnreadChatCount();
         });
     }
-    // Tự động đồng bộ ngầm 2 chiều từ Telegram khi mở hội thoại để đảm bảo hiển thị đầy đủ tin nhắn vừa rep bằng điện thoại
-    handleSyncTelegramHistory(conv, true);
   };
 
   // 5. Làm mới thủ công có hiệu ứng xoay .spin mượt mà
@@ -639,6 +685,16 @@ export default function LiveChatPage() {
       if (!res.success) {
         alert(res.error || 'Lỗi gửi tin nhắn phản hồi');
       } else {
+        setConversations(prev => prev.map(c => {
+          if (c.id === activeConv.id) {
+            return {
+              ...c,
+              last_message: `<<<FROM:admin>>>${textToSend}`,
+              updated_at: new Date().toISOString()
+            };
+          }
+          return c;
+        }));
         fetchMessages(activeConv.id);
       }
     } catch (err) {
@@ -1047,7 +1103,44 @@ export default function LiveChatPage() {
               </div>
 
               {/* 2. Vùng Lịch Sử Tin Nhắn Cuộn Độc Lập */}
-              <div className="chat-messages-area" ref={messagesContainerRef}>
+              <div
+                className="chat-messages-area"
+                ref={messagesContainerRef}
+                onScroll={(e) => {
+                  if (e.currentTarget.scrollTop < 40 && hasMoreOlder && !loadingOlder) {
+                    loadOlderMessages();
+                  }
+                }}
+              >
+                {/* Nút xem tin nhắn cũ hơn khi cuộn lên đỉnh */}
+                {hasMoreOlder && (
+                  <div style={{ textAlign: 'center', margin: '4px 0 12px 0' }}>
+                    <button
+                      type="button"
+                      onClick={loadOlderMessages}
+                      disabled={loadingOlder}
+                      className="btn btn-secondary btn-xs"
+                      style={{
+                        padding: '4px 14px',
+                        fontSize: '11.5px',
+                        borderRadius: '999px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-muted)'
+                      }}
+                    >
+                      {loadingOlder ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <Loader2 size={12} className="spin" />
+                          <span>Đang tải tin nhắn cũ hơn...</span>
+                        </span>
+                      ) : (
+                        <span>↑ Xem tin nhắn cũ hơn</span>
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 {messages.length === 0 ? (
                   <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
                     Chưa có tin nhắn trong cuộc trò chuyện này.

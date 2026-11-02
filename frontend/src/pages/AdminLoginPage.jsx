@@ -5,7 +5,7 @@ import { loginAdmin } from '../lib/api';
 
 export default function AdminLoginPage({ onLoginSuccess }) {
   const [username, setUsername] = useState('admin@telepulse.io');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
