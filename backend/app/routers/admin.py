@@ -1,3 +1,4 @@
+from app.services.cloud_kv import CloudKV
 import time
 import json
 import os
@@ -30,38 +31,27 @@ def _load_plans() -> Dict[str, Any]:
         except Exception:
             pass
 
-    # 2. Fallback đọc file local nếu chưa tạo bảng
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(PLANS_FILE):
-        default_plans = {
-            "free": {
-                "id": "plan_free",
-                "name": "Gói Miễn Phí (Free)",
-                "price": 0,
-                "duration_days": 3650,
-                "max_accounts": 1,
-                "daily_broadcast_limit": 50,
-                "features": ["1 Tài khoản Telegram", "Quét nhóm cơ bản", "50 tin/ngày"]
-            },
-            "vip": {
-                "id": "plan_vip_pro",
-                "name": "VIP Pro (Doanh Nghiệp / Marketer)",
-                "price": 199000,
-                "duration_days": 30,
-                "max_accounts": 10,
-                "daily_broadcast_limit": 999999,
-                "features": ["10 Tài khoản Telegram", "Live Chat 2 chiều", "Spintax không giới hạn", "Tự động chống khoá FloodWait"]
-            }
+    # 2. Tự động đồng bộ từ Supabase Cloud Storage (CloudKV) + Local Backup
+    return CloudKV.load("subscription_plans.json", lambda: {
+        "free": {
+            "id": "plan_free",
+            "name": "Gói Miễn Phí (Free)",
+            "price": 0,
+            "duration_days": 3650,
+            "max_accounts": 1,
+            "daily_broadcast_limit": 50,
+            "features": ["1 Tài khoản Telegram", "Quét nhóm cơ bản", "50 tin/ngày"]
+        },
+        "vip": {
+            "id": "plan_vip_pro",
+            "name": "VIP Pro (Doanh Nghiệp / Marketer)",
+            "price": 199000,
+            "duration_days": 30,
+            "max_accounts": 10,
+            "daily_broadcast_limit": 999999,
+            "features": ["10 Tài khoản Telegram", "Live Chat 2 chiều", "Spintax không giới hạn", "Tự động chống khoá FloodWait"]
         }
-        with open(PLANS_FILE, "w", encoding="utf-8") as f:
-            json.dump(default_plans, f, ensure_ascii=False, indent=2)
-        return default_plans
-
-    try:
-        with open(PLANS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    })
 
 def _save_plans(plans: Dict[str, Any]):
     # 1. Đồng bộ lên Supabase subscription_plans
@@ -82,10 +72,8 @@ def _save_plans(plans: Dict[str, Any]):
         except Exception as e:
             print(f"⚠️ [_save_plans] Lỗi lưu plans vào Supabase: {e}")
 
-    # 2. Lưu file local backup
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(PLANS_FILE, "w", encoding="utf-8") as f:
-        json.dump(plans, f, ensure_ascii=False, indent=2)
+    # 2. Tự động lưu lên Supabase Cloud Storage (CloudKV) + Local Backup
+    CloudKV.save("subscription_plans.json", plans)
 
 
 class UpdatePricingBody(BaseModel):
@@ -513,28 +501,18 @@ async def get_all_bots(admin_id: str = Depends(require_admin)):
 SETTINGS_FILE = os.path.join(DATA_DIR, "platform_settings.json")
 
 def _load_platform_settings() -> Dict[str, Any]:
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(SETTINGS_FILE):
-        defaults = {
-            "bank_bin": "970422",
-            "bank_name": "MBBank (Ngân hàng Quân Đội)",
-            "bank_account_number": "0869098696",
-            "bank_account_name": "TRAN NGOC DUC",
-            "admin_alert_telegram": "vhoang25",
-            "support_telegram": "vhoang25",
-            "support_zalo": "0869098696",
-            "support_hotline": "0869098696",
-            "system_mode": "operational",
-            "updated_at": datetime.utcnow().isoformat()
-        }
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(defaults, f, ensure_ascii=False, indent=2)
-        return defaults
-    try:
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    return CloudKV.load("platform_settings.json", lambda: {
+        "bank_bin": "970422",
+        "bank_name": "MBBank (Ngân hàng Quân Đội)",
+        "bank_account_number": "0869098696",
+        "bank_account_name": "TRAN NGOC DUC",
+        "admin_alert_telegram": "vhoang25",
+        "support_telegram": "vhoang25",
+        "support_zalo": "0869098696",
+        "support_hotline": "0869098696",
+        "system_mode": "operational",
+        "updated_at": datetime.utcnow().isoformat()
+    })
 
 
 @router.get("/public/support-info")
@@ -574,9 +552,7 @@ async def update_platform_settings(body: PlatformSettingsBody, admin_id: str = D
         "support_hotline": body.support_hotline or st.get("support_hotline", "0869098696"),
         "updated_at": datetime.utcnow().isoformat()
     })
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(st, f, ensure_ascii=False, indent=2)
+    CloudKV.save("platform_settings.json", st)
 
     return {"success": True, "data": st}
 

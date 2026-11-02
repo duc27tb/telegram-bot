@@ -2,38 +2,26 @@ import os
 import json
 import time
 from typing import Dict, Any, List, Optional
+from datetime import datetime
+from app.database import get_supabase
+from app.services.cloud_kv import CloudKV
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data"))
 STORE_FILE = os.path.join(DATA_DIR, "wallet_store.json")
 
 def _load_data() -> Dict[str, Any]:
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(STORE_FILE):
-        initial = {
-            "balances": {},
-            "transactions": [],
-            "subscriptions": {}
-        }
-        with open(STORE_FILE, "w", encoding="utf-8") as f:
-            json.dump(initial, f, ensure_ascii=False, indent=2)
-        return initial
-
-    try:
-        with open(STORE_FILE, "r", encoding="utf-8") as f:
-            d = json.load(f)
-            if "subscriptions" not in d:
-                d["subscriptions"] = {}
-            return d
-    except Exception:
-        return {"balances": {}, "transactions": [], "subscriptions": {}}
+    d = CloudKV.load("wallet_store.json", lambda: {
+        "balances": {},
+        "transactions": [],
+        "subscriptions": {}
+    })
+    d.setdefault("balances", {})
+    d.setdefault("transactions", [])
+    d.setdefault("subscriptions", {})
+    return d
 
 def _save_data(data: Dict[str, Any]):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(STORE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-from app.database import get_supabase
-from datetime import datetime
+    CloudKV.save("wallet_store.json", data)
 
 # Bộ nhớ đệm ngắn hạn (RAM Cache) tăng tốc độ query cho các vòng lặp gửi tin
 _mem_cache: Dict[str, Dict[str, Any]] = {}
@@ -73,7 +61,7 @@ class LocalWalletStore:
             except Exception:
                 pass
 
-        # Fallback đọc local file
+        # Fallback đọc CloudKV + local file
         data = _load_data()
         bal = data.get("balances", {}).get(user_id, 0)
         _set_cached(f"bal_{user_id}", bal)
@@ -81,7 +69,7 @@ class LocalWalletStore:
 
     @classmethod
     def set_balance(cls, user_id: str, new_balance: int):
-        """Cập nhật số dư tài khoản vào Supabase profiles và local store"""
+        """Cập nhật số dư tài khoản vào Supabase profiles và CloudKV store"""
         if not user_id:
             return
 
@@ -98,7 +86,7 @@ class LocalWalletStore:
             except Exception as e:
                 print(f"⚠️ [WalletStore] Lỗi cập nhật Supabase balance: {e}")
 
-        # 2. Cập nhật file local backup
+        # 2. Cập nhật CloudKV + local backup
         data = _load_data()
         if "balances" not in data:
             data["balances"] = {}
@@ -107,7 +95,7 @@ class LocalWalletStore:
 
     @classmethod
     def save_transaction(cls, tx: Dict[str, Any]):
-        """Lưu đơn nạp tiền vào Supabase deposit_transactions và local store"""
+        """Lưu đơn nạp tiền vào Supabase deposit_transactions và CloudKV store"""
         order_code = tx.get("order_code")
         user_id = tx.get("user_id")
 
@@ -133,7 +121,7 @@ class LocalWalletStore:
             except Exception as e:
                 print(f"⚠️ [WalletStore] Lỗi lưu Supabase transaction: {e}")
 
-        # 2. Lưu local file backup
+        # 2. Lưu CloudKV + local backup
         data = _load_data()
         transactions = data.get("transactions", [])
         updated = False
@@ -182,32 +170,38 @@ class LocalWalletStore:
 
     @classmethod
     def credit_user(cls, user_id: str, amount: int, order_code: int, reference_id: str = "") -> int:
-        """Cộng tiền an toàn cho người dùng (Sử dụng RPC Supabase và cập nhật giao dịch)"""
+        """Cộng tiền an toàn cho người dùng (Tự động fallback nếu chưa tạo RPC SQL)"""
         new_balance = 0
         _invalidate_cached(user_id)
 
-        # 1. Cộng vào Supabase
         sb = get_supabase()
         if sb:
             try:
                 rpc_res = sb.rpc("increment_user_balance", {"p_user_id": user_id, "p_amount": amount}).execute()
                 if rpc_res.data is not None:
                     new_balance = int(rpc_res.data)
-                else:
+            except Exception:
+                pass
+
+            if new_balance <= 0:
+                try:
                     curr_res = sb.table("profiles").select("balance").eq("id", user_id).single().execute()
                     curr_bal = (curr_res.data.get("balance") or 0) if curr_res.data else 0
-                    new_balance = curr_bal + amount
+                    new_balance = int(curr_bal) + int(amount)
                     sb.table("profiles").update({"balance": new_balance}).eq("id", user_id).execute()
+                except Exception as e:
+                    print(f"⚠️ [WalletStore] Lỗi cộng balance bảng profiles: {e}")
 
+            try:
                 sb.table("deposit_transactions").update({
                     "status": "PAID",
                     "payos_transaction_id": reference_id,
                     "updated_at": datetime.utcnow().isoformat() + "Z"
                 }).eq("order_code", order_code).execute()
-            except Exception as e:
-                print(f"⚠️ [WalletStore] Lỗi credit Supabase: {e}")
+            except Exception:
+                pass
 
-        # 2. Cập nhật local file backup
+        # 2. Cập nhật CloudKV + local backup
         data = _load_data()
         if "balances" not in data:
             data["balances"] = {}
@@ -229,7 +223,7 @@ class LocalWalletStore:
 
     @classmethod
     def get_subscription(cls, user_id: str) -> Dict[str, Any]:
-        """Lấy thông tin gói cước của người dùng (Ưu tiên Supabase profiles)"""
+        """Lấy thông tin gói cước của người dùng (Ưu tiên Supabase profiles -> CloudKV)"""
         if not user_id:
             return {"tier": "FREE", "expires_at": None}
 
@@ -241,16 +235,14 @@ class LocalWalletStore:
         if sb:
             try:
                 res = sb.table("profiles").select("subscription_tier, tier_expires_at").eq("id", user_id).single().execute()
-                if res.data:
+                if res.data and res.data.get("subscription_tier"):
                     tier = (res.data.get("subscription_tier") or "FREE").upper()
                     exp_str = res.data.get("tier_expires_at")
                     
-                    # Kiểm tra hết hạn gói VIP
                     if tier == "VIP" and exp_str:
                         try:
                             exp_dt = datetime.fromisoformat(exp_str.replace("Z", "+00:00")).replace(tzinfo=None)
                             if exp_dt < datetime.utcnow():
-                                # Tự động hạ cấp xuống FREE trong Supabase
                                 sb.table("profiles").update({"subscription_tier": "FREE"}).eq("id", user_id).execute()
                                 result = {"tier": "FREE", "expires_at": exp_str, "expired": True}
                                 _set_cached(f"sub_{user_id}", result)
@@ -264,7 +256,7 @@ class LocalWalletStore:
             except Exception:
                 pass
 
-        # Fallback local file
+        # Tự động đọc từ CloudKV (Supabase Storage)
         data = _load_data()
         sub = data.get("subscriptions", {}).get(user_id)
         if not sub:
@@ -290,11 +282,11 @@ class LocalWalletStore:
 
     @classmethod
     def set_subscription(cls, user_id: str, tier: str, expires_at: Optional[str] = None):
-        """Cập nhật gói cước cho người dùng vào Supabase và local backup"""
+        """Cập nhật gói cước cho người dùng vào Supabase và CloudKV"""
         clean_tier = tier.upper().strip()
         _invalidate_cached(user_id)
 
-        # 1. Cập nhật Supabase profiles
+        # 1. Cập nhật Supabase profiles (nếu đã có cột)
         sb = get_supabase()
         if sb and user_id:
             try:
@@ -303,10 +295,10 @@ class LocalWalletStore:
                     "tier_expires_at": expires_at,
                     "updated_at": datetime.utcnow().isoformat() + "Z"
                 }).eq("id", user_id).execute()
-            except Exception as e:
-                print(f"⚠️ [WalletStore] Lỗi cập nhật Supabase subscription: {e}")
+            except Exception:
+                pass
 
-        # 2. Cập nhật file local backup
+        # 2. Tự động lưu lên CloudKV (Supabase Storage) + local backup
         data = _load_data()
         if "subscriptions" not in data:
             data["subscriptions"] = {}

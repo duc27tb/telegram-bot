@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from app.services.pyrogram_engine import bot_engine, check_schedule_window
+from app.services.cloud_kv import CloudKV
 from app.database import get_supabase
 
 router = APIRouter(prefix="/api/campaign", tags=["Campaign"])
@@ -99,26 +100,32 @@ async def get_campaign_status(user_id: str):
             "is_expired": passed >= c_delay
         }
 
-    # Đánh giá trạng thái khung giờ hẹn giờ (Smart Scheduler Evaluation)
-    schedule_info = None
-    if camp.data:
-        c_set = camp.data[0]
-        is_in_win, wait_sec, sched_msg, next_time = check_schedule_window(c_set)
-        schedule_info = {
-            "enabled": bool(c_set.get("schedule_enabled", False)),
-            "is_in_window": is_in_win,
-            "wait_seconds": wait_sec,
-            "status_message": sched_msg,
-            "next_run_at": next_time,
-            "time_slots": c_set.get("time_slots") or [
-                {"start": "08:00", "end": "11:30"},
-                {"start": "13:30", "end": "18:00"}
-            ],
-            "active_days": c_set.get("active_days") or [1, 2, 3, 4, 5, 6, 7]
-        }
+    # Hợp nhất cấu hình hẹn giờ từ CloudKV (tự động hoạt động không cần chạy SQL thủ công)
+    c_set = dict(camp.data[0]) if camp.data else {"user_id": user_id}
+    cloud_sched = CloudKV.get_user_schedule(user_id)
+    for k in ("schedule_enabled", "time_slots", "active_days", "timezone"):
+        if k not in c_set or c_set.get(k) is None:
+            if k in cloud_sched:
+                c_set[k] = cloud_sched[k]
+        elif k in cloud_sched:
+            c_set[k] = cloud_sched[k]
+
+    is_in_win, wait_sec, sched_msg, next_time = check_schedule_window(c_set)
+    schedule_info = {
+        "enabled": bool(c_set.get("schedule_enabled", False)),
+        "is_in_window": is_in_win,
+        "wait_seconds": wait_sec,
+        "status_message": sched_msg,
+        "next_run_at": next_time,
+        "time_slots": c_set.get("time_slots") or [
+            {"start": "08:00", "end": "11:30"},
+            {"start": "13:30", "end": "18:00"}
+        ],
+        "active_days": c_set.get("active_days") or [1, 2, 3, 4, 5, 6, 7]
+    }
 
     return {
-        "settings": camp.data[0] if camp.data else None,
+        "settings": c_set if camp.data else None,
         "is_task_running": is_active,
         "checkpoint": checkpoint_info,
         "schedule": schedule_info
@@ -130,12 +137,12 @@ async def update_settings(body: UpdateCampaignSettings):
     if not sb:
         raise HTTPException(status_code=500, detail="Chưa kết nối Supabase")
 
-    update_data = {}
+    base_update = {}
     if body.group_delay_seconds is not None:
-        update_data["group_delay_seconds"] = body.group_delay_seconds
+        base_update["group_delay_seconds"] = body.group_delay_seconds
         bot_engine.custom_user_delays[body.user_id] = body.group_delay_seconds
     if body.cycle_delay_seconds is not None:
-        update_data["cycle_delay_seconds"] = body.cycle_delay_seconds
+        base_update["cycle_delay_seconds"] = body.cycle_delay_seconds
     if body.forward_to_telegram is not None:
         from app.services.wallet_store import LocalWalletStore
         is_vip = LocalWalletStore.get_subscription_tier(body.user_id) == "VIP"
@@ -144,21 +151,36 @@ async def update_settings(body: UpdateCampaignSettings):
                 status_code=403, 
                 detail="Tính năng tự động chuyển tiếp tin nhắn về Telegram cá nhân chỉ dành riêng cho gói VIP Pro!"
             )
-        update_data["forward_to_telegram"] = body.forward_to_telegram if is_vip else False
+        base_update["forward_to_telegram"] = body.forward_to_telegram if is_vip else False
 
+    sched_update = {}
     if body.schedule_enabled is not None:
-        update_data["schedule_enabled"] = body.schedule_enabled
+        sched_update["schedule_enabled"] = body.schedule_enabled
     if body.time_slots is not None:
-        update_data["time_slots"] = body.time_slots
+        sched_update["time_slots"] = body.time_slots
     if body.active_days is not None:
-        update_data["active_days"] = body.active_days
+        sched_update["active_days"] = body.active_days
     if body.timezone is not None:
-        update_data["timezone"] = body.timezone
+        sched_update["timezone"] = body.timezone
 
-    update_data["updated_at"] = "now()"
+    # 1. Tự động lưu cấu hình hẹn giờ lên Supabase Cloud Storage (CloudKV)
+    saved_sched = CloudKV.save_user_schedule(body.user_id, sched_update) if sched_update else CloudKV.get_user_schedule(body.user_id)
 
-    res = sb.table("campaign_settings").update(update_data).eq("user_id", body.user_id).execute()
-    return {"success": True, "settings": res.data[0] if res.data else None}
+    # 2. Cập nhật bảng campaign_settings (tự động fallback nếu chưa chạy SQL thêm cột schedule)
+    base_update["updated_at"] = "now()"
+    full_update = {**base_update, **sched_update}
+    res_data = None
+    try:
+        res = sb.table("campaign_settings").update(full_update).eq("user_id", body.user_id).execute()
+        res_data = res.data[0] if res.data else None
+    except Exception:
+        res = sb.table("campaign_settings").update(base_update).eq("user_id", body.user_id).execute()
+        res_data = res.data[0] if res.data else None
+
+    if res_data is not None:
+        res_data.update(saved_sched)
+
+    return {"success": True, "settings": res_data or saved_sched}
 
 @router.get("/logs/{user_id}")
 async def get_campaign_logs(user_id: str, limit: int = 50):
@@ -167,7 +189,6 @@ async def get_campaign_logs(user_id: str, limit: int = 50):
     if not sb:
         raise HTTPException(status_code=500, detail="Chưa kết nối Supabase")
     try:
-        # Tự động dọn dẹp các log cũ hơn 1 tiếng để bảng luôn nhẹ và query siêu tốc (< 5ms)
         try:
             one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
             sb.table("bot_logs").delete().eq("user_id", user_id).lt("created_at", one_hour_ago).execute()
@@ -178,4 +199,3 @@ async def get_campaign_logs(user_id: str, limit: int = 50):
         return {"success": True, "data": res.data or []}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-

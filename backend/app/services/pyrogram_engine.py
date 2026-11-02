@@ -941,7 +941,10 @@ class PyrogramEngine:
                     print(f"⏹️ [Campaign] User {user_id} đã dừng chiến dịch.")
                     break
 
-                settings = camp_res.data[0]
+                from app.services.cloud_kv import CloudKV
+                settings = dict(camp_res.data[0])
+                cloud_sched = CloudKV.get_user_schedule(user_id)
+                settings.update(cloud_sched)
                 group_delay = max(5, settings.get("group_delay_seconds", 120))
                 cycle_delay = max(30, settings.get("cycle_delay_seconds", 1200))
 
@@ -965,11 +968,12 @@ class PyrogramEngine:
                         await asyncio.sleep(step)
                         wait_sec -= step
 
-                        c_check = sb.table("campaign_settings").select("is_running, schedule_enabled").eq("user_id", user_id).execute()
+                        c_check = sb.table("campaign_settings").select("is_running").eq("user_id", user_id).execute()
                         if not c_check.data or not c_check.data[0].get("is_running", False):
                             print(f"⏹️ [Campaign Scheduler] User {user_id} đã bấm Dừng trong lúc đang nghỉ hẹn giờ.")
                             return
-                        if not c_check.data[0].get("schedule_enabled", False):
+                        latest_sched = CloudKV.get_user_schedule(user_id)
+                        if not latest_sched.get("schedule_enabled", settings.get("schedule_enabled", False)):
                             print(f"⚡ [Campaign Scheduler] User {user_id} đã Tắt hẹn giờ, tiếp tục rải tin ngay lập tức!")
                             break
                     continue
